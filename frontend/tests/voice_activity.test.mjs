@@ -114,7 +114,7 @@ test("startup calibration detects a quiet speaker immediately", () => {
   assert.equal(result.noiseFloor, 0.004);
 });
 
-test("endpoint waits for roughly 320 ms of trailing silence", () => {
+test("endpoint waits for roughly 260 ms of trailing silence", () => {
   const base = {
     sampleCount: 1.0 * 48000,
     sampleRate: 48000,
@@ -124,11 +124,11 @@ test("endpoint waits for roughly 320 ms of trailing silence", () => {
   };
   assert.equal(shouldSubmitSpeechWindow({
     ...base,
-    trailingSilenceSamples: 0.319 * 48000,
+    trailingSilenceSamples: 0.259 * 48000,
   }), false);
   assert.equal(shouldSubmitSpeechWindow({
     ...base,
-    trailingSilenceSamples: 0.320 * 48000,
+    trailingSilenceSamples: 0.260 * 48000,
   }), true);
 });
 

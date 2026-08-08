@@ -3,12 +3,12 @@
   "desktopName": "jarvis-v4-desktop.desktop",
   "version": "4.1.1",
   "private": true,
-  "description": "Secure cross-platform desktop shell for JARVIS v4",
+  "description": "Secure German and English AI desktop assistant for Windows",
   "author": "JARVIS contributors",
-  "homepage": "https://github.com/Samirprogramm/jarvis-v4",
+  "homepage": "https://github.com/samirtest378/jarvis-v4",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Samirprogramm/jarvis-v4.git"
+    "url": "https://github.com/samirtest378/jarvis-v4.git"
   },
   "main": "main.cjs",
   "scripts": {

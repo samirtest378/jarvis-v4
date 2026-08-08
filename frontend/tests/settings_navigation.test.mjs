@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const source = readFileSync(join(root, "src", "settings.ts"), "utf8");
+const style = readFileSync(join(root, "src", "style.css"), "utf8");
+const voiceSource = readFileSync(join(root, "src", "voice.ts"), "utf8");
 
 test("settings use real pages instead of one long scrolling form", () => {
   assert.match(source, /const SETTINGS_PAGES/);
@@ -49,12 +51,22 @@ test("Windows and Linux disclose the hard local recognition memory limit", () =>
   assert.match(source, /Memory is hard-limited/);
 });
 
+test("recognition stays on the configured bilingual backend and refreshes after settings", () => {
+  assert.doesNotMatch(voiceSource, /webkitSpeechRecognition|createSystemSpeechInput/);
+  assert.match(voiceSource, /refresh\(\) \{/);
+  assert.match(voiceSource, /selected\?\.stop\(\)/);
+  assert.match(voiceSource, /Choose Local recognition in Voice settings/);
+});
+
 test("permission controls use the active operating system and accept Windows screen availability", () => {
   assert.doesNotMatch(source, /setSectionFeedback\("access-feedback", "Asking macOS/);
   assert.match(source, /Checking \$\{platform\.systemName\} privacy controls/);
   assert.match(source, /accessPresentation\(status\.screen\)\.ready/);
   assert.match(source, /systemName: "Windows"/);
   assert.match(source, /systemName: "Linux"/);
+  assert.doesNotMatch(source, /unless macOS revokes access/);
+  assert.doesNotMatch(source, /Approve each macOS sheet/);
+  assert.match(source, /platform\.permissionPrompt/);
 });
 
 test("permissions can be requested once and the saved setup is not prompted again", () => {
@@ -68,4 +80,35 @@ test("first launch opens the one-time permission setup even when intelligence is
   assert.match(source, /if \(access && !access\.setup\?\.completed\)/);
   assert.match(source, /Allow everything once/);
   assert.match(source, /isPermissionOnlySetup = false/);
+});
+
+test("Windows caption buttons never cover JARVIS microphone or settings controls", () => {
+  assert.match(style, /html\[data-platform="win32"\] #controls \{ top: 2px; right: 150px; \}/);
+  assert.match(style, /html\[data-platform="win32"\] #menu-dropdown \{ top: 48px; right: 150px; \}/);
+  assert.match(style, /html\[data-platform="win32"\] \.settings-panel[\s\S]*top: 44px/);
+});
+
+test("Google services use branded icons and start consent from the whole row", () => {
+  assert.match(source, /const GMAIL_ICON = `<svg/);
+  assert.match(source, /const GOOGLE_CALENDAR_ICON = `<svg/);
+  assert.equal((source.match(/data-google-connect role="button"/g) || []).length, 2);
+  assert.match(source, /const startGoogleConnection = async/);
+  assert.match(source, /desktop\.connectGoogle\(\{ clientId, clientSecret/);
+  assert.match(source, /event\.key !== "Enter" && event\.key !== " "/);
+  assert.match(source, /showSettingsPage\("section-access"\)/);
+  assert.match(source, /setup\.open = true/);
+  assert.doesNotMatch(source, /<summary>Connect Google directly/);
+});
+
+test("ticket dashboard is visibly read-only and keeps summaries local", () => {
+  assert.match(source, /data-settings-target="section-tickets"/);
+  assert.match(source, /\/api\/ticket-dashboard\/analyze/);
+  assert.match(source, /snapshot: pastedText/);
+  assert.match(source, /if \(snapshot\) snapshot\.value = ""/);
+  assert.match(source, /element\.textContent = result\.metrics\[metric\]/);
+  assert.match(source, /nothing sent to the AI provider/);
+  assert.doesNotMatch(source, /allow_ai_summary/);
+  const renderer = source.match(/function renderTicketDashboard[\s\S]*?\n}/)?.[0] || "";
+  assert.doesNotMatch(renderer, /innerHTML/);
+  assert.match(style, /\.ticket-metrics/);
 });

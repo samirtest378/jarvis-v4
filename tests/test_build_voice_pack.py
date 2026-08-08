@@ -143,4 +143,4 @@ def test_installer_workflow_consumes_only_the_new_voice_helper() -> None:
     ).read_text(encoding="utf-8")
 
     assert "VOICE_RELEASE_TAG: v4.1.1" in workflow
-    assert "JARVIS-v4-Smooth-Bilingual-Voice-4.1.1-${{ matrix.voice_platform }}" in workflow
+    assert "JARVIS-v4-Smooth-Bilingual-Voice-4.1.1-win32-x64.jarvisvoice" in workflow

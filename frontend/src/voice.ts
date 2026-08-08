@@ -20,119 +20,10 @@ export interface VoiceInput {
   /** `keepOpen` holds the microphone through a reply; see the recorder. */
   pause(keepOpen?: boolean): void;
   resume(): void;
+  /** Re-resolve the backend after the user saves recognition settings. */
+  refresh?(): void;
   setLanguage(language: string): void;
   isSupported(): boolean;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const webkitSpeechRecognition: any;
-
-function createSystemSpeechInput(
-  onTranscript: (text: string) => boolean | void,
-  onError: (msg: string) => void
-): VoiceInput {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SR = (window as any).SpeechRecognition || (typeof webkitSpeechRecognition !== "undefined" ? webkitSpeechRecognition : null);
-  if (!SR) {
-      onError("Speech recognition is unavailable on this computer.");
-    return { start() {}, stop() {}, pause() {}, resume() {}, setLanguage() {}, isSupported() { return false; } };
-  }
-
-  const recognition = new SR();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  let languageMode = "auto";
-  const systemLanguage = String(navigator.language || "de-DE");
-  recognition.lang = /^(?:de|en)(?:-|$)/i.test(systemLanguage) ? systemLanguage : "de-DE";
-
-  let shouldListen = false;
-  let paused = false;
-
-  recognition.onresult = (event: any) => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      if (event.results[i].isFinal) {
-        const text = event.results[i][0].transcript.trim();
-        if (text) {
-          if (languageMode === "auto") {
-            // Browser recognition cannot request true bilingual auto-detection.
-            // Learn from every accepted sentence so the next fallback turn
-            // follows an English/German switch instead of staying hard-coded.
-            recognition.lang = inferSpeechLanguage(text, "auto");
-          }
-          onTranscript(text);
-        }
-      }
-    }
-  };
-
-  recognition.onend = () => {
-    if (shouldListen && !paused) {
-      try {
-        recognition.start();
-      } catch {
-        // Already started
-      }
-    }
-  };
-
-  recognition.onerror = (event: any) => {
-    if (event.error === "not-allowed") {
-      onError("Microphone access denied. Please allow microphone access.");
-      shouldListen = false;
-    } else if (event.error === "no-speech") {
-      // Normal, just restart
-    } else if (event.error === "aborted") {
-      // Expected during pause
-    } else if (event.error === "network") {
-      onError("The operating-system speech service is unavailable. Local Whisper is recommended.");
-      shouldListen = false;
-    } else {
-      console.warn("[voice] recognition error:", event.error);
-    }
-  };
-
-  return {
-    start() {
-      shouldListen = true;
-      paused = false;
-      try {
-        recognition.start();
-      } catch {
-        // Already started
-      }
-    },
-    stop() {
-      shouldListen = false;
-      paused = false;
-      recognition.stop();
-    },
-    pause() {
-      paused = true;
-      recognition.stop();
-    },
-    resume() {
-      paused = false;
-      if (shouldListen) {
-        try {
-          recognition.start();
-        } catch {
-          // Already started
-        }
-      }
-    },
-    setLanguage(language: string) {
-      const normalized = language.trim();
-      languageMode = normalized === "auto" ? "auto" : normalized;
-      if (/^(?:de-DE|en-US|en-GB)$/.test(normalized)) {
-        recognition.lang = normalized;
-      } else if (normalized === "auto") {
-        recognition.lang = /^(?:de|en)(?:-|$)/i.test(systemLanguage) ? systemLanguage : "de-DE";
-      }
-    },
-    isSupported() {
-      return true;
-    },
-  };
 }
 
 function createRecordedSpeechInput(
@@ -429,13 +320,12 @@ function createRecordedSpeechInput(
   };
 }
 
-/** Prefer recorded audio with the configured backend and use OS speech only as a fallback. */
+/** Use only the configured recorded-audio backend for predictable DE/EN recognition. */
 export function createVoiceInput(
   onTranscript: (text: string) => boolean | void,
   onError: (msg: string) => void,
 ): VoiceInput {
   const recorded = createRecordedSpeechInput(onTranscript, onError);
-  const system = createSystemSpeechInput(onTranscript, onError);
   let selected: VoiceInput | null = null;
   let language = "auto";
   let shouldListen = false;
@@ -454,14 +344,24 @@ export function createVoiceInput(
         const canRecord = response.ok
           && status.active_provider !== "off"
           && (status.active_provider !== "local" || status.local_ready === true);
-        selected = canRecord ? recorded : system;
+        const selectedInput = canRecord ? recorded : null;
+        selected = selectedInput;
+        if (!selectedInput && shouldListen && !paused) {
+          onError(status.active_provider === "off"
+            ? "Speech recognition is switched off. Choose Local recognition in Voice settings."
+            : "The configured speech engine is not ready. Choose Local recognition in Voice settings.");
+          return;
+        }
+        if (!selectedInput) return;
+        selectedInput.setLanguage(language);
+        if (shouldListen) {
+          selectedInput.start();
+          if (paused) selectedInput.pause();
+        }
       } catch {
-        selected = system;
-      }
-      selected.setLanguage(language);
-      if (shouldListen) {
-        selected.start();
-        if (paused) selected.pause();
+        selected = null;
+        if (shouldListen && !paused) onError("The local speech service is not ready. Restart JARVIS and try again.");
+        return;
       }
     })().finally(() => { selecting = null; });
     return selecting;
@@ -486,13 +386,17 @@ export function createVoiceInput(
       paused = false;
       if (shouldListen) selected ? selected.resume() : void select();
     },
+    refresh() {
+      selected?.stop();
+      selected = null;
+      if (shouldListen && !paused) void select();
+    },
     setLanguage(value: string) {
       language = value;
       recorded.setLanguage(value);
-      system.setLanguage(value);
     },
     isSupported() {
-      return recorded.isSupported() || system.isSupported();
+      return recorded.isSupported();
     },
   };
 }

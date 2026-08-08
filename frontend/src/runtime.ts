@@ -70,7 +70,7 @@ export interface DesktopBridge {
     error?: string;
   }>;
   openPrivacySettings(kind: "all" | "microphone" | "screen" | "automation" | "accessibility" | "files"): Promise<{ success: boolean; error?: string }>;
-  connectGoogle(values: { clientId: string; clientSecret?: string; storageMode: "keychain" | "local" }): Promise<{ success: boolean; error?: string; storageMode?: string }>;
+  connectGoogle(values: { clientId?: string; clientSecret?: string; storageMode: "keychain" | "local" }): Promise<{ success: boolean; error?: string; storageMode?: string }>;
   disconnectGoogle(): Promise<{ success: boolean; canceled?: boolean; error?: string }>;
   getVoicePackStatus(): Promise<{
     installed: boolean;

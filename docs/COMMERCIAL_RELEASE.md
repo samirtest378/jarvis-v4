@@ -9,16 +9,16 @@ Version 4.1.1 has a polished desktop UI, private local service, optional cloud
 API keys, a bundled multilingual Whisper engine for offline “Hey JARVIS” and
 commands, a Windows-aware interface,
 privacy-safe support diagnostics, an optional PKCE-protected Google account
-connector, and automated installer builds for macOS Apple Silicon, macOS Intel,
-Windows x64, and Linux x64. Release automation uses a cross-platform Python lock with exact
+connector, and an automated Windows x64 installer build. Release automation
+uses a Windows-tested Python lock with exact
 versions and package hashes, and installers embed a checksummed customer/legal
 bundle covering the project terms, privacy, support, user guide, and collected
 third-party license evidence. Its bundled native German/English voice pack uses separate, matched
 language profiles, identical model weights, and deterministic mastering for the
-same customer-provided voice identity on all supported systems, stays offline,
+same customer-provided voice identity on Windows, stays offline,
 and rejects suspiciously truncated generations. Common
-native apps and standard user folders are controlled through a
-fixed cross-platform catalogue without arbitrary shell commands. German and
+Windows apps and standard user folders are controlled through a
+fixed allow-listed catalogue without arbitrary shell commands. German and
 English wake commands are normalized for speech punctuation and route common
 app, folder, screen, mail, calendar, task, and status requests without relying
 on a cloud model. Ambiguous shortened speech such as “auf YouTube” can trigger
@@ -104,30 +104,24 @@ signing evidence below are not complete.
 
 ## Installer and signing gates
 
-- [x] macOS DMG and ZIP packaging is configured.
 - [x] Windows x64 uses a German/English assisted NSIS installer with selectable
   destination, Start Menu/Desktop shortcuts, run-after-install, the same
   multi-resolution JARVIS logo, and private-data removal on uninstall.
 - [x] Windows uses a stable app identity and a tested single-instance lock; a
   second launch restores the existing window and reuses its backend.
-- [x] The bundled Windows/Linux recognizer uses Large-v3 Turbo Q8, rejects
+- [x] The bundled Windows recognizer uses Large-v3 Turbo Q8, rejects
   models over 1 GiB, and runs inside a hard 2.5 GiB process-memory ceiling.
-- [x] CI builds on native macOS arm64, macOS x64, Windows x64, and Linux x64
-  runners; Linux produces AppImage and DEB packages.
-- [x] Native voice-pack CI publishes macOS arm64, macOS x64, Windows x64, and
-  Linux x64 archives from the same verified bilingual profiles and model
-  hashes; every installer stages and re-verifies the matching archive.
-- [ ] Configure an Apple Developer ID Application certificate and notarization
-  credentials, then verify `codesign`, `spctl`, and `stapler` on the delivered
-  DMG/ZIP. Record the exact artifact hashes and verification results in
-  `docs/MACOS_SIGNING_CONFIRMATION.md`.
+- [x] CI builds the sale candidate on a native Windows x64 runner and refuses
+  to publish an unsigned test installer.
+- [x] The Windows installer stages and re-verifies its matching bilingual voice
+  archive and pinned model/profile hashes.
 - [ ] Configure an Authenticode OV/EV certificate or Azure Trusted Signing and
   verify the signature on the delivered Windows installer.
 - [ ] Test install, upgrade, rollback, first launch, permissions, and uninstall
-  on clean physical/virtual machines for every supported OS and CPU.
-- [ ] Record a physical-microphone wake test in German and English on each
-  supported OS/CPU. Automated WAV transcription is necessary but cannot replace
-  a human speaking into every target machine.
+  on clean Windows 10 and Windows 11 x64 machines.
+- [ ] Record a physical-microphone wake test in German and English on a typical
+  Windows Intel laptop. Automated WAV transcription is necessary but cannot
+  replace a human speaking into the target machine.
 - [ ] Record clean-machine installation, first-run, upgrade, permission,
   German/English microphone, and uninstall evidence for the exact release
   artifacts in `docs/RELEASE_QA_CONFIRMATION.md`.
@@ -155,11 +149,6 @@ files are missing.
 
 Use GitHub repository or environment secrets; never commit credentials:
 
-- macOS signing: `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`
-- macOS notarization, preferred: `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
-  `APPLE_API_ISSUER`
-- macOS notarization alternative: `APPLE_ID`,
-  `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
 - Windows signing: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`
 
 Run the **Build JARVIS v4 installers** workflow in `signed` mode. Tag builds

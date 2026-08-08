@@ -36,3 +36,12 @@ test("the visible particle mesh and fallback crossfade are smooth", () => {
   assert.match(orb, /const audioEase = 1 - decay/);
   assert.match(style, /opacity 320ms cubic-bezier\(0\.22, 1, 0\.36, 1\)/);
 });
+
+test("the Windows live renderer protects integrated graphics without video cuts", () => {
+  assert.match(main, /document\.documentElement\.dataset\.platform = getRuntimeConfig\(\)\.platform/);
+  assert.match(orb, /const N = isWindows \? 1200 : 2000/);
+  assert.match(orb, /const pixelRatioCap = isWindows \? 1\.1 : 2/);
+  assert.match(orb, /const MAX_LINES = isWindows \? 3600 : 8000/);
+  assert.match(orb, /enabled \? 30 : 45/);
+  assert.doesNotMatch(orb, /disableHardwareAcceleration/);
+});

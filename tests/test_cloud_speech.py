@@ -53,9 +53,9 @@ def _configure(monkeypatch, *, provider="auto", openai="", fish="", local=False)
     monkeypatch.setattr(server._local_speech, "status", lambda: {"available": local})
 
 
-def test_auto_prefers_cloud_engines_over_the_local_model(monkeypatch):
+def test_auto_prefers_warmed_local_cpu_recognition(monkeypatch):
     _configure(monkeypatch, openai="sk-test", fish="fish-test", local=True)
-    assert server._stt_provider_chain() == ["openai", "fish", "local"]
+    assert server._stt_provider_chain() == ["local", "openai", "fish"]
 
 
 def test_cloud_first_session_keeps_the_local_fallback_warm(monkeypatch):

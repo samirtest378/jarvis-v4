@@ -15,7 +15,7 @@ CONFIRMATION_FILES = {
     "JARVIS brand/trademark clearance": "BRAND_CLEARANCE_CONFIRMATION.md",
     "voice and reference-audio rights": "VOICE_RIGHTS_CONFIRMATION.md",
     "privacy, customer terms, and seller contact legal review": "PRIVACY_LEGAL_CONFIRMATION.md",
-    "macOS Developer ID signing and notarization": "MACOS_SIGNING_CONFIRMATION.md",
+    "Windows Authenticode signing": "WINDOWS_SIGNING_CONFIRMATION.md",
     "clean-machine release QA": "RELEASE_QA_CONFIRMATION.md",
 }
 SECRET_PATTERNS = {
@@ -79,10 +79,7 @@ def main() -> int:
         errors.append(f"package versions are not synchronized: {sorted(str(value) for value in versions)}")
 
     build = desktop_package.get("build", {})
-    mac = build.get("mac", {})
     nsis = build.get("nsis", {})
-    if mac.get("notarize") is not True or mac.get("hardenedRuntime") is not True:
-        errors.append("macOS notarization and Hardened Runtime are not both enabled")
     if build.get("win", {}).get("target", [{}])[0].get("target") != "nsis":
         errors.append("Windows NSIS target is not configured")
     if nsis.get("deleteAppDataOnUninstall") is not True:
@@ -93,8 +90,6 @@ def main() -> int:
         "docs/COMMERCIAL_RELEASE.md",
         "docs/PRIVACY.md",
         "requirements-build.lock.txt",
-        "desktop/build/entitlements.mac.plist",
-        "desktop/build/entitlements.mac.inherit.plist",
     ]
     for relative in required_files:
         if not (ROOT / relative).is_file():

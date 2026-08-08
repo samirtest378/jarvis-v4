@@ -20,6 +20,10 @@ import {
 import "./style.css";
 
 watchUiLanguage();
+// Expose the trusted desktop platform to presentation-only modules. This lets
+// the live renderer use a lighter profile on integrated Windows graphics
+// without relying on brittle browser user-agent parsing.
+document.documentElement.dataset.platform = getRuntimeConfig().platform;
 
 type State = "idle" | "listening" | "thinking" | "speaking";
 type MessageRole = "user" | "assistant" | "system";
@@ -586,7 +590,12 @@ window.addEventListener("jarvis:wake-setting", ((event: CustomEvent<{ enabled: b
   speechLanguage = event.detail.language || "auto";
   voiceInput.setLanguage(speechLanguage);
   browserSpeech.setLanguage(speechLanguage);
-  if (wakeEnabled) startWakeListening();
+  if (wakeEnabled) {
+    // Recognition provider changes take effect immediately, even while an
+    // always-on session is already listening.
+    voiceInput.refresh?.();
+    startWakeListening();
+  }
   else {
     wakeFollowupUntil = 0;
     voiceConversationActive = false;

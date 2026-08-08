@@ -201,6 +201,23 @@ interface PreferencesResponse {
   calendar_accounts: string;
 }
 
+interface TicketDashboardResponse {
+  success: true;
+  source: "pasted_snapshot" | "public_webpage";
+  title: string;
+  url: string;
+  analyzed_at: string;
+  language: "de" | "en";
+  metrics: Record<"total" | "open" | "pending" | "urgent" | "new" | "closed", number | null>;
+  summary: string;
+  safety: {
+    read_only: true;
+    used_cookies: false;
+    clicked_or_submitted: false;
+    sent_to_ai_provider: false;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -211,12 +228,17 @@ let isFirstTimeSetup = false;
 let isPermissionOnlySetup = false;
 let setupStep = 0; // 0=language model, 1=voice, 2=access, 3=name, 4=done
 let activeSettingsPage = "section-api-keys";
+let googleAccountConnected = false;
 const browserSpeech = createBrowserSpeechPlayer();
+
+const GMAIL_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7v10" stroke="#4285F4" stroke-width="3"/><path d="M20.5 7v10" stroke="#34A853" stroke-width="3"/><path d="M3.5 7 12 13.3 20.5 7" fill="none" stroke="#EA4335" stroke-width="3" stroke-linejoin="round"/><path d="M3.5 17h4" stroke="#FBBC04" stroke-width="3"/></svg>`;
+const GOOGLE_CALENDAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M4 3h16v18H4z"/><path fill="#4285F4" d="M4 8h16v13H4z"/><path fill="#34A853" d="M4 8h5v5H4z"/><path fill="#FBBC04" d="M15 8h5v5h-5z"/><path fill="#EA4335" d="M15 3h5v5h-5z"/><text x="12" y="18" text-anchor="middle" fill="#fff" font-size="8" font-family="Arial" font-weight="700">31</text></svg>`;
 
 const SETTINGS_PAGES: Record<string, string[]> = {
   "section-api-keys": ["section-api-keys"],
   "section-voice": ["section-voice"],
   "section-access": ["section-access"],
+  "section-tickets": ["section-tickets"],
   "section-preferences": ["section-preferences"],
   "section-status": ["section-status", "section-sysinfo", "section-privacy-reset"],
 };
@@ -237,6 +259,8 @@ function platformPresentation() {
       nativeCalendar: "Apple Calendar",
       nativeMailDetail: "Gmail, iCloud, Exchange — every account in Mail",
       nativeCalendarDetail: "Every calendar in the Calendar app",
+      appsLabel: "Spotify, Music, Safari & more",
+      appsDetail: "Just say “open Spotify”",
     };
   }
   if (platform === "win32") {
@@ -253,6 +277,8 @@ function platformPresentation() {
       nativeCalendar: "Outlook Calendar",
       nativeMailDetail: "Reads and sends through configured classic Outlook",
       nativeCalendarDetail: "Reads today's events from classic Outlook",
+      appsLabel: "Spotify, Chrome & more",
+      appsDetail: "Say “open Chrome” or “open Spotify”",
     };
   }
   return {
@@ -268,6 +294,8 @@ function platformPresentation() {
     nativeCalendar: "Calendar",
     nativeMailDetail: "Native mail bridge unavailable",
     nativeCalendarDetail: "Native calendar bridge unavailable",
+    appsLabel: "Spotify, browser & more",
+    appsDetail: "Say “open Spotify” or “open browser”",
   };
 }
 
@@ -291,6 +319,8 @@ function configurePlatformPresentation() {
   text("connection-calendar-label", presentation.nativeCalendar);
   text("connection-mail-detail", presentation.nativeMailDetail);
   text("connection-calendar-detail", presentation.nativeCalendarDetail);
+  text("connection-apps-label", presentation.appsLabel);
+  text("connection-apps-detail", presentation.appsDetail);
   document.querySelectorAll<HTMLElement>("[data-native-office-manage]").forEach((element) => {
     element.hidden = !presentation.mac;
   });
@@ -378,6 +408,7 @@ function buildPanelHTML(): string {
         <button class="settings-nav-button active" type="button" role="tab" aria-selected="true" data-settings-target="section-api-keys">AI</button>
         <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-voice">Voice</button>
         <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-access">Access</button>
+        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-tickets">Tickets</button>
         <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-preferences">You</button>
         <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-status">System</button>
       </nav>
@@ -707,45 +738,6 @@ function buildPanelHTML(): string {
             <div class="status-row"><span class="status-dot" id="status-private-notes"></span><span>Private JARVIS notes</span><span class="status-detail" id="status-private-notes-detail"></span></div>
             <div class="status-row"><span class="status-dot" id="status-google-account"></span><span>Private Google account data</span><span class="status-detail" id="status-google-account-detail"></span></div>
           </div>
-          <p class="settings-help compact">Opening Gmail or Google Calendar in your browser does not give JARVIS access to private messages or events. A verified account connector is required for that.</p>
-          <h4 class="settings-subheading">Google Account · mail + read-only calendar</h4>
-          <div class="google-account-card" id="google-account-card">
-            <div class="google-account-heading">
-              <div>
-                <strong id="google-account-state">Not connected</strong>
-                <p>Read unread Gmail subjects/senders and upcoming Calendar events only after you approve Google’s consent screen.</p>
-              </div>
-              <span class="connection-badge" id="google-account-badge">OFF</span>
-            </div>
-            <div id="google-oauth-fields">
-              <!-- Google requires every desktop app to use its own OAuth client,
-                   so there is a one-time setup before the sign-in page can open.
-                   The steps are spelled out rather than assumed. -->
-              <ol class="google-steps">
-                <li>Open the Google Cloud console and create (or pick) a project.</li>
-                <li>Enable the <strong>Gmail API</strong> and the <strong>Google Calendar API</strong>.</li>
-                <li>Under <em>Credentials</em>, create an <strong>OAuth client ID</strong> of type <strong>Desktop app</strong>.</li>
-                <li>Paste the client ID below, then press Connect — Google opens in your browser.</li>
-              </ol>
-              <div class="settings-actions">
-                <button class="settings-btn" id="btn-open-google-console" type="button">Open Google Cloud console…</button>
-              </div>
-              <div class="settings-field">
-                <label for="input-google-client-id">Client ID</label>
-                <input type="text" id="input-google-client-id" autocomplete="off" placeholder="…apps.googleusercontent.com" />
-              </div>
-              <div class="settings-field">
-                <label for="input-google-client-secret">Client secret <span class="label-optional">only if Google gave you one</span></label>
-                <input type="password" id="input-google-client-secret" autocomplete="new-password" placeholder="Optional" />
-              </div>
-            </div>
-            <div class="settings-actions">
-              <button class="settings-btn primary" id="btn-connect-google">Connect Google…</button>
-              <button class="settings-btn danger" id="btn-disconnect-google" hidden>Disconnect</button>
-            </div>
-            <p class="settings-help compact">JARVIS reads unread Gmail senders and subjects, can send a new message only when you instruct it, and reads upcoming Calendar events. It never edits or deletes existing mail or calendar events. The token is stored in your selected local key storage and can be revoked here at any time.</p>
-            <div class="settings-feedback" id="google-feedback" role="status"></div>
-          </div>
           <div class="settings-actions">
             <button class="settings-btn" id="btn-refresh-system">Refresh status</button>
             <button class="settings-btn" id="btn-test-connections">Test connections</button>
@@ -815,8 +807,8 @@ function buildPanelHTML(): string {
             <div class="connection-row" data-connection="apps">
               <span class="connection-logo" data-logo="spotify" aria-hidden="true">♪</span>
               <span class="connection-text">
-                <strong>Spotify, Music, Safari &amp; more</strong>
-                <small>Just say “open Spotify”</small>
+                <strong id="connection-apps-label">Spotify, Music, Safari &amp; more</strong>
+                <small id="connection-apps-detail">Just say “open Spotify”</small>
               </span>
               <span class="connection-state">Ready</span>
               <span class="connection-dot is-ready" id="conn-apps-dot"></span>
@@ -824,35 +816,67 @@ function buildPanelHTML(): string {
             </div>
           </div>
 
-          <!-- Signing in to Google directly is only worth the setup for someone
-               whose Gmail is not in the Mail app. Kept available, kept out of
-               the way. -->
-          <details class="settings-advanced">
-            <summary>Connect Google directly — alternative to local Mail and Calendar</summary>
-            <p class="settings-help compact">Connect Google if your account is not already configured in Apple Mail/Calendar or classic Outlook, or if you want JARVIS to reach it without those apps.</p>
-            <div class="connection-list">
-              <div class="connection-row" data-connection="google">
-                <span class="connection-logo" data-logo="gmail" aria-hidden="true">M</span>
+          <h4 class="settings-subheading google-connections-heading">Google Workspace</h4>
+          <p class="settings-help compact google-connections-help">Select Gmail or Google Calendar to open Google’s secure approval page. JARVIS receives access only after you approve it.</p>
+            <div class="connection-list google-service-list">
+              <div class="connection-row connection-row-action" data-connection="google" data-google-connect role="button" tabindex="0" aria-label="Connect Gmail">
+                <span class="connection-logo connection-logo-brand" data-logo="gmail" aria-hidden="true">${GMAIL_ICON}</span>
                 <span class="connection-text">
                   <strong>Gmail via Google account</strong>
                   <small>Unread senders/subjects and instructed sending</small>
                 </span>
                 <span class="connection-state" id="conn-google-state">Checking…</span>
                 <span class="connection-dot" id="conn-google-dot"></span>
-                <button class="connection-link" type="button" data-google-connect>Connect</button>
+                <button class="connection-link" type="button">Connect</button>
               </div>
-              <div class="connection-row" data-connection="google-calendar">
-                <span class="connection-logo" data-logo="gcal" aria-hidden="true">31</span>
+              <div class="connection-row connection-row-action" data-connection="google-calendar" data-google-connect role="button" tabindex="0" aria-label="Connect Google Calendar">
+                <span class="connection-logo connection-logo-brand" data-logo="gcal" aria-hidden="true">${GOOGLE_CALENDAR_ICON}</span>
                 <span class="connection-text">
                   <strong>Google Calendar via Google account</strong>
                   <small>Read-only: upcoming events</small>
                 </span>
                 <span class="connection-state" id="conn-gcal-state">Checking…</span>
                 <span class="connection-dot" id="conn-gcal-dot"></span>
-                <button class="connection-link" type="button" data-google-connect>Connect</button>
+                <button class="connection-link" type="button">Connect</button>
               </div>
             </div>
-          </details>
+
+          <div class="google-account-card" id="google-account-card">
+            <div class="google-account-heading">
+              <div>
+                <strong id="google-account-state">Not connected</strong>
+                <p>Gmail metadata/sending and read-only Calendar access are enabled only after Google approval.</p>
+              </div>
+              <span class="connection-badge" id="google-account-badge">OFF</span>
+            </div>
+            <details class="settings-advanced google-app-setup" id="google-oauth-fields">
+              <summary>App setup · seller only</summary>
+              <p class="settings-help compact">A commercial build needs its verified Google Desktop OAuth client once. Customers should not normally see this step.</p>
+              <ol class="google-steps">
+                <li>Open Google Cloud and select the production project.</li>
+                <li>Enable the <strong>Gmail API</strong> and <strong>Google Calendar API</strong>.</li>
+                <li>Create a <strong>Desktop app</strong> OAuth client.</li>
+                <li>Paste its client ID, then select Connect.</li>
+              </ol>
+              <div class="settings-actions">
+                <button class="settings-btn" id="btn-open-google-console" type="button">Open Google Cloud console…</button>
+              </div>
+              <div class="settings-field">
+                <label for="input-google-client-id">Client ID</label>
+                <input type="text" id="input-google-client-id" autocomplete="off" placeholder="…apps.googleusercontent.com" />
+              </div>
+              <div class="settings-field">
+                <label for="input-google-client-secret">Client secret <span class="label-optional">only if Google gave you one</span></label>
+                <input type="password" id="input-google-client-secret" autocomplete="new-password" placeholder="Optional" />
+              </div>
+            </details>
+            <div class="settings-actions">
+              <button class="settings-btn primary" id="btn-connect-google">Connect Google…</button>
+              <button class="settings-btn danger" id="btn-disconnect-google" hidden>Disconnect</button>
+            </div>
+            <p class="settings-help compact">JARVIS never edits or deletes existing mail or calendar events. The account token stays in protected Windows storage and can be revoked here.</p>
+            <div class="settings-feedback" id="google-feedback" role="status"></div>
+          </div>
 
           <details class="settings-advanced">
             <summary>Technical detail — raw permissions</summary>
@@ -880,6 +904,59 @@ function buildPanelHTML(): string {
           </div>
           </details>
           <div class="settings-feedback" id="access-feedback" role="status"></div>
+        </section>
+
+        <!-- Read-only support dashboard -->
+        <section class="settings-section" id="section-tickets">
+          <div class="ticket-heading">
+            <div>
+              <span class="settings-eyebrow">READ ONLY</span>
+              <h3>Ticket overview</h3>
+            </div>
+            <span class="ticket-safety-badge">No clicks · no edits</span>
+          </div>
+          <p class="settings-help">Show ticket counts and a short summary from a public dashboard or from text you paste. JARVIS never signs in, clicks, submits, edits, or deletes anything.</p>
+
+          <div class="ticket-input-grid">
+            <div class="settings-field">
+              <label for="input-ticket-workspace">Workspace name <span class="label-optional">optional</span></label>
+              <input type="text" id="input-ticket-workspace" maxlength="80" autocomplete="off" placeholder="Customer Support" />
+            </div>
+            <div class="settings-field">
+              <label for="input-ticket-url">Public HTTPS dashboard</label>
+              <input type="url" id="input-ticket-url" maxlength="2048" autocomplete="off" placeholder="https://support.example.com/dashboard" />
+              <p class="settings-help compact">Public pages only. Private or signed links, cookies, local addresses, and login sessions are blocked.</p>
+            </div>
+          </div>
+
+          <div class="ticket-divider"><span>or paste visible ticket text</span></div>
+          <div class="settings-field">
+            <label for="input-ticket-snapshot">Dashboard text</label>
+            <textarea id="input-ticket-snapshot" rows="7" maxlength="50000" autocomplete="off" placeholder="Total: 42&#10;Open: 8&#10;Pending: 3&#10;Urgent: 1"></textarea>
+            <p class="settings-help compact">Pasted text is analyzed locally and cleared after a successful result. It is not sent to your AI provider.</p>
+          </div>
+          <div class="settings-actions">
+            <button class="settings-btn primary" id="btn-analyze-tickets" type="button">Analyze tickets</button>
+            <button class="settings-btn" id="btn-clear-tickets" type="button">Clear locally</button>
+          </div>
+          <div class="settings-feedback" id="ticket-feedback" role="status"></div>
+
+          <div class="ticket-result" id="ticket-result" hidden>
+            <div class="ticket-result-heading">
+              <div><span>Latest read-only snapshot</span><strong id="ticket-result-title">Ticket overview</strong></div>
+              <span class="ticket-local-chip">LOCAL SUMMARY</span>
+            </div>
+            <div class="ticket-metrics" aria-label="Ticket metrics">
+              <div><span>Total</span><strong id="ticket-metric-total">—</strong></div>
+              <div><span>Open</span><strong id="ticket-metric-open">—</strong></div>
+              <div><span>Pending</span><strong id="ticket-metric-pending">—</strong></div>
+              <div><span>Urgent</span><strong id="ticket-metric-urgent">—</strong></div>
+              <div><span>New</span><strong id="ticket-metric-new">—</strong></div>
+              <div><span>Closed</span><strong id="ticket-metric-closed">—</strong></div>
+            </div>
+            <p class="ticket-summary" id="ticket-summary"></p>
+            <p class="ticket-proof" id="ticket-proof">Read only · no cookies · no clicks · nothing sent to the AI provider</p>
+          </div>
         </section>
 
         <!-- User Preferences -->
@@ -1186,6 +1263,7 @@ async function loadStatus() {
     });
 
     const googleConnected = status.capabilities.google_account_connected;
+    googleAccountConnected = googleConnected;
     for (const id of ["google", "gcal"]) {
       document.getElementById(`conn-${id}-dot`)?.classList.toggle("is-ready", googleConnected);
       const state = document.getElementById(`conn-${id}-state`);
@@ -1613,6 +1691,59 @@ async function savePreferences() {
   if (getUiLanguage() !== previousUiLanguage) window.location.reload();
 }
 
+const TICKET_METRIC_NAMES = ["total", "open", "pending", "urgent", "new", "closed"] as const;
+
+function clearTicketDashboard() {
+  for (const id of ["input-ticket-workspace", "input-ticket-url", "input-ticket-snapshot"]) {
+    const input = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+    if (input) input.value = "";
+  }
+  localStorage.removeItem("jarvis_ticket_workspace");
+  localStorage.removeItem("jarvis_ticket_public_url");
+  const result = document.getElementById("ticket-result");
+  if (result) result.hidden = true;
+  setSectionFeedback("ticket-feedback", "Cleared from this computer.");
+}
+
+function renderTicketDashboard(result: TicketDashboardResponse) {
+  const container = document.getElementById("ticket-result");
+  const title = document.getElementById("ticket-result-title");
+  const summary = document.getElementById("ticket-summary");
+  if (title) title.textContent = result.title || "Ticket overview";
+  if (summary) summary.textContent = result.summary;
+  for (const metric of TICKET_METRIC_NAMES) {
+    const element = document.getElementById(`ticket-metric-${metric}`);
+    if (element) element.textContent = result.metrics[metric] === null
+      ? "—"
+      : String(result.metrics[metric]);
+  }
+  if (container) container.hidden = false;
+}
+
+async function analyzeTicketDashboard() {
+  const workspace = document.getElementById("input-ticket-workspace") as HTMLInputElement | null;
+  const url = document.getElementById("input-ticket-url") as HTMLInputElement | null;
+  const snapshot = document.getElementById("input-ticket-snapshot") as HTMLTextAreaElement | null;
+  const workspaceName = workspace?.value.trim() || "";
+  const publicUrl = url?.value.trim() || "";
+  const pastedText = snapshot?.value.trim() || "";
+  if (!publicUrl && !pastedText) throw new Error("Enter a public HTTPS dashboard or paste its visible ticket text.");
+
+  const result = await apiPost<TicketDashboardResponse>("/api/ticket-dashboard/analyze", {
+    workspace_name: workspaceName,
+    url: publicUrl,
+    snapshot: pastedText,
+    language: getUiLanguage(),
+  });
+  renderTicketDashboard(result);
+  // Remember only the harmless form labels. Ticket content is deliberately
+  // never retained in browser storage.
+  localStorage.setItem("jarvis_ticket_workspace", workspaceName);
+  if (publicUrl) localStorage.setItem("jarvis_ticket_public_url", publicUrl);
+  else localStorage.removeItem("jarvis_ticket_public_url");
+  if (snapshot) snapshot.value = "";
+}
+
 function wireEvents() {
   // Close
   document.getElementById("settings-close")?.addEventListener("click", closeSettings);
@@ -1623,6 +1754,25 @@ function wireEvents() {
       showSettingsPage(button.dataset.settingsTarget || "section-api-keys");
     });
   });
+
+  const ticketWorkspace = document.getElementById("input-ticket-workspace") as HTMLInputElement | null;
+  const ticketUrl = document.getElementById("input-ticket-url") as HTMLInputElement | null;
+  if (ticketWorkspace) ticketWorkspace.value = localStorage.getItem("jarvis_ticket_workspace") || "";
+  if (ticketUrl) ticketUrl.value = localStorage.getItem("jarvis_ticket_public_url") || "";
+  document.getElementById("btn-analyze-tickets")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget as HTMLButtonElement;
+    button.disabled = true;
+    setSectionFeedback("ticket-feedback", "Reading safely and calculating locally…");
+    try {
+      await analyzeTicketDashboard();
+      setSectionFeedback("ticket-feedback", "Read-only ticket overview updated.");
+    } catch (error) {
+      setSectionFeedback("ticket-feedback", error instanceof Error ? error.message : "Ticket analysis failed.", true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+  document.getElementById("btn-clear-tickets")?.addEventListener("click", clearTicketDashboard);
 
   // Ask the system first, and only fall back to its privacy settings when the
   // operating system cannot grant or verify access directly.
@@ -2020,13 +2170,14 @@ function wireEvents() {
       return;
     }
     const button = document.getElementById("btn-check-access") as HTMLButtonElement;
+    const platform = platformPresentation();
     if (button.dataset.setupDone === "true") {
       await loadSystemAccess(false);
-      setSectionFeedback("access-feedback", "Your one-time permission setup is saved. JARVIS will not ask again unless macOS revokes access or the app identity changes.");
+      setSectionFeedback("access-feedback", `Your permission setup is saved. JARVIS will only ask again if ${platform.systemName} revokes access or the app identity changes.`);
       return;
     }
     button.disabled = true;
-    setSectionFeedback("access-feedback", "One-time setup is running. Approve each macOS sheet that appears; JARVIS remembers the result.");
+    setSectionFeedback("access-feedback", platform.permissionPrompt);
     try {
       const result = await desktop.requestAllSystemAccess();
       if (!result.success || !result.status) throw new Error(result.error || "The operating system did not return a permission status.");
@@ -2035,7 +2186,7 @@ function wireEvents() {
       setSectionFeedback(
         "access-feedback",
         result.needsManual?.length
-          ? `Saved. Finish the highlighted items in the ${platformPresentation().privacyButton} window that opened; macOS will remember them.`
+          ? `Saved. Finish the highlighted items in the ${platform.privacyButton} window that opened; ${platform.systemName} will remember them.`
           : `Saved. ${summary.message} JARVIS will not ask again.`,
       );
     } catch (error) {
@@ -2052,27 +2203,65 @@ function wireEvents() {
     if (!result.success) setSectionFeedback("access-feedback", result.error || "Could not open Privacy Settings", true);
   });
 
-  // The Connect buttons in the service list should do the thing, not point at
-  // where the thing lives. If a client ID is already on hand the browser opens
-  // straight away; otherwise the setup is revealed with the field focused, so
-  // the next step is obvious instead of buried.
-  document.querySelectorAll<HTMLButtonElement>("[data-google-connect]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const card = document.getElementById("google-account-card");
-      const clientIdField = document.getElementById("input-google-client-id") as HTMLInputElement | null;
-      const connect = document.getElementById("btn-connect-google") as HTMLButtonElement | null;
-      // Expand whatever the card is folded inside before scrolling to it.
-      card?.closest("details")?.setAttribute("open", "");
-      if (clientIdField?.value.trim()) {
-        connect?.click();
-        return;
+  const revealGoogleSetup = (message: string, isError = true) => {
+    showSettingsPage("section-access");
+    const card = document.getElementById("google-account-card");
+    const setup = document.getElementById("google-oauth-fields") as HTMLDetailsElement | null;
+    if (isError && setup) {
+      setup.hidden = false;
+      setup.open = true;
+    }
+    card?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (isError) (document.getElementById("input-google-client-id") as HTMLInputElement | null)?.focus();
+    setSectionFeedback("google-feedback", message, isError);
+  };
+
+  const startGoogleConnection = async () => {
+    if (googleAccountConnected) {
+      revealGoogleSetup("Gmail and Google Calendar are connected. You can disconnect them here.", false);
+      return;
+    }
+    const desktop = getDesktopBridge();
+    const button = document.getElementById("btn-connect-google") as HTMLButtonElement | null;
+    if (!desktop || !button) {
+      setSectionFeedback("access-feedback", "Open the installed Windows app to connect Google.", true);
+      return;
+    }
+    const clientId = (document.getElementById("input-google-client-id") as HTMLInputElement | null)?.value.trim() || undefined;
+    const clientSecret = (document.getElementById("input-google-client-secret") as HTMLInputElement | null)?.value.trim() || undefined;
+    button.disabled = true;
+    setSectionFeedback("access-feedback", "Google opens in your browser. Approve the requested read access there…");
+    setSectionFeedback("google-feedback", "Waiting for Google approval…");
+    try {
+      const result = await desktop.connectGoogle({ clientId, clientSecret, storageMode: selectedSecretStorageMode() });
+      if (!result.success) throw new Error(result.error || "Google connection failed");
+      const secretInput = document.getElementById("input-google-client-secret") as HTMLInputElement | null;
+      if (secretInput) secretInput.value = "";
+      setSectionFeedback("access-feedback", "Gmail and Google Calendar are connected.");
+      setSectionFeedback("google-feedback", "Google connected successfully.");
+      await loadStatus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Google connection failed";
+      if (/OAuth client ID|required|client ID/i.test(message)) {
+        revealGoogleSetup("This build needs its Google Desktop OAuth client ID once. Add it here, then select Connect.");
+      } else {
+        setSectionFeedback("access-feedback", message, true);
+        setSectionFeedback("google-feedback", message, true);
       }
-      card?.scrollIntoView({ behavior: "smooth", block: "center" });
-      clientIdField?.focus();
-      setSectionFeedback(
-        "google-feedback",
-        "Google needs a one-time client ID for this app. Follow the four steps here, then press Connect.",
-      );
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  // Clicking either the full branded row or its button starts the secure
+  // consent flow directly. Keyboard users receive the same one-step action.
+  document.querySelectorAll<HTMLElement>("[data-google-connect]").forEach((row) => {
+    row.addEventListener("click", () => { void startGoogleConnection(); });
+    row.addEventListener("keydown", (event) => {
+      if (event.target !== row) return;
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      void startGoogleConnection();
     });
   });
 
@@ -2081,34 +2270,7 @@ function wireEvents() {
     window.open("https://console.cloud.google.com/apis/credentials", "_blank", "noreferrer");
   });
 
-  document.getElementById("btn-connect-google")?.addEventListener("click", async () => {
-    const desktop = getDesktopBridge();
-    const button = document.getElementById("btn-connect-google") as HTMLButtonElement | null;
-    if (!desktop || !button) {
-      setSectionFeedback("google-feedback", "Open the installed desktop app to connect Google.", true);
-      return;
-    }
-    const clientId = (document.getElementById("input-google-client-id") as HTMLInputElement | null)?.value.trim() || "";
-    const clientSecret = (document.getElementById("input-google-client-secret") as HTMLInputElement | null)?.value.trim() || "";
-    if (!clientId) {
-      setSectionFeedback("google-feedback", "Enter the seller's Google Desktop OAuth client ID.", true);
-      return;
-    }
-    button.disabled = true;
-    setSectionFeedback("google-feedback", "Google is opening in your browser. Approve Gmail metadata/send and read-only Calendar access there…");
-    try {
-      const result = await desktop.connectGoogle({ clientId, clientSecret, storageMode: selectedSecretStorageMode() });
-      if (!result.success) throw new Error(result.error || "Google connection failed");
-      const secretInput = document.getElementById("input-google-client-secret") as HTMLInputElement | null;
-      if (secretInput) secretInput.value = "";
-      setSectionFeedback("google-feedback", "Google connected for Gmail metadata/send and read-only Calendar access.");
-      await loadStatus();
-    } catch (error) {
-      setSectionFeedback("google-feedback", error instanceof Error ? error.message : "Google connection failed", true);
-    } finally {
-      button.disabled = false;
-    }
-  });
+  document.getElementById("btn-connect-google")?.addEventListener("click", () => { void startGoogleConnection(); });
 
   document.getElementById("btn-disconnect-google")?.addEventListener("click", async () => {
     const desktop = getDesktopBridge();
@@ -2286,7 +2448,7 @@ function enterPermissionSetupMode() {
 }
 
 function showSetupStep(step: number) {
-  const sections = ["section-api-keys", "section-voice", "section-status", "section-access", "section-preferences", "section-sysinfo", "section-privacy-reset"];
+  const sections = ["section-api-keys", "section-voice", "section-status", "section-access", "section-tickets", "section-preferences", "section-sysinfo", "section-privacy-reset"];
   sections.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;

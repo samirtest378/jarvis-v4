@@ -525,7 +525,7 @@ async def test_system_voice_starts_in_renderer_without_wav_generation(monkeypatc
         {
             "type": "audio",
             "data": "",
-            "text": "Systems ready, sir.",
+            "text": "Systems ready sir",
             "speak": True,
         },
     ]

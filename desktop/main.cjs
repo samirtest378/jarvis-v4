@@ -1059,8 +1059,13 @@ async function connectGoogleAccount(values) {
   if (storageMode === "keychain" && !secureStorageAvailable()) {
     return { success: false, error: "Secure operating-system storage is unavailable." };
   }
-  const clientId = validateClientId(values?.clientId);
-  const clientSecret = typeof values?.clientSecret === "string" ? values.clientSecret.trim() : "";
+  // Commercial builds may preconfigure their public Desktop OAuth client.
+  // The renderer never receives it; an empty one-tap request resolves it here
+  // from protected storage or the process environment.
+  const configured = resolvedSecrets();
+  const clientId = validateClientId(values?.clientId || configured.googleOauthClientId);
+  const requestedSecret = typeof values?.clientSecret === "string" ? values.clientSecret.trim() : "";
+  const clientSecret = requestedSecret || configured.googleOauthClientSecret || "";
   if (clientSecret.length > 2048 || /[\r\n\0]/.test(clientSecret)) {
     return { success: false, error: "Invalid Google OAuth client secret." };
   }
@@ -1097,8 +1102,8 @@ async function disconnectGoogleAccount() {
   if (!revoked) return { success: false, error: "Google could not revoke the account grant. Nothing was removed." };
   for (const [reader, writer] of [[readSecretStore, writeSecretStore], [readLocalSecretStore, writeLocalSecretStore]]) {
     const store = reader();
-    delete store.googleOauthClientId;
-    delete store.googleOauthClientSecret;
+    // Keep the app's OAuth client configuration so reconnecting remains one
+    // click. Only the user's revocable account token represents a connection.
     delete store.googleRefreshToken;
     writer(store);
   }

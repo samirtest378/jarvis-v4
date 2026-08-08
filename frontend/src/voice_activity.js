@@ -31,11 +31,12 @@ export function shouldSubmitSpeechWindow(state) {
     : state.voicedFrames >= 2;
   if (!hasSpeech) return false;
 
-  // About 320 ms tolerates a natural thinking pause in German and English.
+  // 260 ms is long enough to preserve ordinary German/English word gaps while
+  // making every short voice turn visibly more responsive.
   const enoughTrailingSilence = preciseDurations
-    ? trailingSilenceSamples >= sampleRate * 0.32
-    : state.trailingSilenceFrames >= 7;
-  const naturalEndpoint = seconds >= 0.55 && enoughTrailingSilence;
+    ? trailingSilenceSamples >= sampleRate * 0.26
+    : state.trailingSilenceFrames >= 6;
+  const naturalEndpoint = seconds >= 0.45 && enoughTrailingSilence;
   // Long, natural questions must not be chopped into unrelated fragments.
   // Silence still submits short commands quickly; this upper bound exists only
   // for someone who speaks continuously without pausing.

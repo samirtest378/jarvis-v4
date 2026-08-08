@@ -24,15 +24,23 @@ export interface Orb {
 
 export function createOrb(canvas: HTMLCanvasElement): Orb {
   let destroyed = false;
-  const N = 2000;
+  const isWindows = document.documentElement.dataset.platform === "win32"
+    || navigator.userAgent.includes("Windows");
+  // Integrated Windows graphics pay heavily for millions of blended pixels
+  // and dense dynamic line buffers. This profile keeps the exact same scene
+  // and motion, but draws less invisible detail.
+  const N = isWindows ? 1200 : 2000;
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "low-power" });
-  // Full native resolution: the particles are single points, so any downscale
-  // softens them visibly. This was capped at 1.5 while the stacked blur layers
-  // were making the GPU the bottleneck; with those gone the GPU process sits
-  // near idle, so the sharper render is affordable. The cap of 2 keeps a
-  // hypothetical 3x display from quadrupling the work for no visible gain.
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: !isWindows,
+    powerPreference: "low-power",
+  });
+  // Single-pixel particles do not need a high-DPI backbuffer on an integrated
+  // GPU. Windows is capped near native CSS resolution; other platforms retain
+  // the sharper existing profile.
+  const pixelRatioCap = isWindows ? 1.1 : 2;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, pixelRatioCap));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setClearColor(0x050508, 1);
 
@@ -67,7 +75,7 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
   scene.add(points);
 
   // ── Connection lines ──
-  const MAX_LINES = 8000;
+  const MAX_LINES = isWindows ? 3600 : 8000;
   const linePos = new Float32Array(MAX_LINES * 6);
   const lineGeo = new THREE.BufferGeometry();
   lineGeo.setAttribute("position", new THREE.BufferAttribute(linePos, 3));
@@ -173,16 +181,17 @@ export function createOrb(canvas: HTMLCanvasElement): Orb {
   // actually passed. `k` is that scale (1.0 at 60 Hz, 2.0 at 30 Hz), which
   // keeps the artwork moving at exactly the same visual speed at any rate.
   const FRAME_60HZ_MS = 1000 / 60;
-  let frameBudgetMs = 1000 / 60;
+  let frameBudgetMs = 1000 / (isWindows ? 45 : 60);
   let lastAnimationTick = performance.now();
   let frameAccumulatorMs = frameBudgetMs;
 
-  // Full rate always. Halving the frame rate is the one saving that is
-  // actually visible — the motion stays correct thanks to the time scaling
-  // below, but it reads as less fluid. The cost is taken out of the work per
-  // frame instead (see the neighbour grid), which the eye cannot see at all.
-  function setPowerSaving(_enabled: boolean) {
-    frameBudgetMs = 1000 / 60;
+  // Windows idles at 30 FPS and becomes 45 FPS while JARVIS is active. The
+  // time-scaled simulation preserves speed and easing, so transitions stay
+  // continuous and there are no media cuts.
+  function setPowerSaving(enabled: boolean) {
+    const targetFps = isWindows ? (enabled ? 30 : 45) : 60;
+    frameBudgetMs = 1000 / targetFps;
+    frameAccumulatorMs = Math.min(frameAccumulatorMs, frameBudgetMs);
   }
 
   // Idle freeze. Capping the rate still leaves a full-screen additive-blended

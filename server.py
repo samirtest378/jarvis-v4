@@ -42,6 +42,7 @@ from config import (
     normalize_llm_provider,
 )
 from llm_client import create_llm_client, normalize_api_key, normalize_base_url
+from ticket_dashboard import TicketDashboardError, analyze_ticket_text, parse_ticket_input
 from web_reader import WebReadError, read_public_webpage
 import uuid
 from contextlib import asynccontextmanager
@@ -1243,7 +1244,7 @@ def strip_markdown_for_tts(text: str) -> str:
     result = _md_re.sub(r"^\s*[-*+]\s+", "", result, flags=_md_re.MULTILINE)
     # Remove numbered lists
     result = _md_re.sub(r"^\s*\d+\.\s+", "", result, flags=_md_re.MULTILINE)
-    # Visual line breaks are not additional full stops.
+    # Visual line breaks become a natural silent pause.
     result = _md_re.sub(r"\s*\n+\s*", " ", result)
     # Emoji and control codes carry no useful pronunciation. Ordinary
     # punctuation is retained here and normalized by the bilingual engine.
@@ -1251,17 +1252,16 @@ def strip_markdown_for_tts(text: str) -> str:
         character
         for character in result
         if _unicode.category(character)[0] not in {"C", "S"}
-        or character in {"€", "$", "%", "+"}
+        or character in {"€", "$"}
     )
-    # Clean up multiple spaces
-    result = _md_re.sub(r"\s{2,}", " ", result)
-
-    result = _md_re.sub(r"([.!?])\1+", r"\1", result)
-    result = result.strip(" ,—-")
-    # A terminal pause discourages the local model from continuing a short
-    # answer beyond the requested text.
-    if result and result[-1] not in ".!?":
-        result += "."
+    # Sentence dots become silent line pauses; decorative punctuation and the
+    # symbols users commonly hear mispronounced are removed before *every*
+    # provider sees the text. Chat rendering keeps its original punctuation.
+    result = _md_re.sub(r"\.+(?=\s|$)", "\n", result)
+    result = _md_re.sub(r"-{2,}|[,:=)(/\\&%*\"“”„+çÇ]", " ", result)
+    result = _md_re.sub(r"[ \t]{2,}", " ", result)
+    result = _md_re.sub(r"[ \t]*\n+[ \t]*", "\n", result)
+    result = result.strip(" \t\n,—-")
     return result
 
 
@@ -2803,14 +2803,17 @@ _stt_model_fallback = ""
 
 
 def _stt_available_providers() -> list[str]:
-    """List usable recognition backends, cheapest for this machine first."""
+    """List usable recognition backends in the low-latency privacy order."""
     providers: list[str] = []
+    # The bundled CPU recognizer is warmed at launch. Keep it first so Auto
+    # never adds a network round trip, cloud cost, or an avoidable provider
+    # language-detection mismatch to every spoken turn.
+    if _local_speech.status()["available"]:
+        providers.append("local")
     if OPENAI_API_KEY:
         providers.append("openai")
     if FISH_API_KEY:
         providers.append("fish")
-    if _local_speech.status()["available"]:
-        providers.append("local")
     return providers
 
 
@@ -3492,12 +3495,12 @@ async def synthesize_speech(text: str) -> Optional[bytes]:
 
 def _split_speech_chunks(text: str, target_chars: int = 220) -> list[str]:
     """Split a longer answer at sentence boundaries for earlier playback."""
-    cleaned = " ".join(text.split()).strip()
+    cleaned = "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip()).strip()
     if len(cleaned) <= target_chars:
         return [cleaned] if cleaned else []
     sentences = [
         part.strip()
-        for part in re.split(r"(?<=[.!?])\s+(?=[A-ZÄÖÜ0-9])", cleaned)
+        for part in re.split(r"\n+|(?<=[!?])\s+(?=[A-ZÄÖÜ0-9])", cleaned)
         if part.strip()
     ]
     if len(sentences) < 2:
@@ -3505,7 +3508,7 @@ def _split_speech_chunks(text: str, target_chars: int = 220) -> list[str]:
     chunks: list[str] = []
     current = ""
     for sentence in sentences:
-        candidate = f"{current} {sentence}".strip()
+        candidate = f"{current}\n{sentence}".strip()
         if current and len(candidate) > target_chars:
             chunks.append(current)
             current = sentence
@@ -3516,7 +3519,7 @@ def _split_speech_chunks(text: str, target_chars: int = 220) -> list[str]:
     # Avoid excessive synthesis overhead. Two or three substantial clips start
     # much sooner than one long clip while keeping the JARVIS voice continuous.
     if len(chunks) > 3:
-        chunks = chunks[:2] + [" ".join(chunks[2:])]
+        chunks = chunks[:2] + ["\n".join(chunks[2:])]
     return chunks
 
 
@@ -5768,6 +5771,12 @@ class SpeechSessionUpdate(BaseModel):
 class WakeSettingsUpdate(BaseModel):
     enabled: bool
 
+class TicketDashboardRequest(BaseModel):
+    workspace_name: str = Field(default="", max_length=80)
+    url: str = Field(default="", max_length=2048)
+    snapshot: str = Field(default="", max_length=50_000)
+    language: str = Field(default="auto", max_length=16)
+
 @app.post("/api/settings/keys")
 async def api_settings_keys(body: KeyUpdate):
     allowed = {
@@ -6446,9 +6455,18 @@ async def api_save_voice_settings(body: VoiceSettingsUpdate):
         # The optional neural studio voice is several gigabytes. Release it
         # immediately when the user selects a faster provider.
         await _local_voice_process.stop()
-    if stt_provider != "local":
-        # Free the ~150 MB whisper model as soon as the user leaves local mode.
+    if stt_provider not in {"local", "auto"}:
+        # An explicit cloud/off choice should not retain the sizeable local
+        # recognizer. Auto keeps the CPU model hot because it is its first and
+        # fastest route.
         await _local_speech.stop()
+    elif _local_speech.status()["available"]:
+        # Saving settings must not turn the next utterance into a cold start.
+        # This work finishes in the background and never delays the save.
+        asyncio.create_task(
+            _local_speech.prepare(),
+            name="jarvis-local-speech-settings-warmup",
+        )
     return {"success": True, "tts": _tts_status(), "stt": _stt_status()}
 
 @app.post("/api/settings/wake")
@@ -6473,6 +6491,55 @@ async def api_save_preferences(body: PreferencesUpdate):
     _write_env_key("CALENDAR_ACCOUNTS", body.calendar_accounts)
     _reload_runtime_config()
     return {"success": True}
+
+@app.post("/api/ticket-dashboard/analyze")
+async def api_analyze_ticket_dashboard(body: TicketDashboardRequest):
+    """Read a public dashboard or analyze pasted text without any web action."""
+    workspace_name = re.sub(r"\s+", " ", body.workspace_name).strip()[:80]
+    source_kind = "pasted_snapshot"
+    source_url = ""
+    page_title = workspace_name
+    source_text = ""
+    try:
+        if body.snapshot.strip():
+            parsed = parse_ticket_input(body.snapshot)
+            if parsed.kind != "text":
+                raise TicketDashboardError("Paste visible ticket text, not a URL, into the snapshot field.")
+            source_text = parsed.value
+        else:
+            parsed = parse_ticket_input(body.url)
+            if parsed.kind != "url":
+                raise TicketDashboardError("Enter a public HTTPS dashboard URL or paste its visible text.")
+            page = await read_public_webpage(parsed.value)
+            source_kind = "public_webpage"
+            source_url = page.url
+            page_title = workspace_name or page.title
+            source_text = page.text
+        analysis = analyze_ticket_text(source_text, body.language)
+    except (TicketDashboardError, WebReadError) as exc:
+        return JSONResponse({"success": False, "error": str(exc)}, status_code=400)
+    except httpx.HTTPError:
+        return JSONResponse(
+            {"success": False, "error": "The public ticket page could not be read safely."},
+            status_code=502,
+        )
+
+    return {
+        "success": True,
+        "source": source_kind,
+        "title": page_title or "Ticket overview",
+        "url": source_url,
+        "analyzed_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "language": analysis.language,
+        "metrics": analysis.metrics.as_dict(include_missing=True),
+        "summary": analysis.summary,
+        "safety": {
+            "read_only": True,
+            "used_cookies": False,
+            "clicked_or_submitted": False,
+            "sent_to_ai_provider": False,
+        },
+    }
 
 # ---------------------------------------------------------------------------
 # Control endpoints (restart, fix-self)

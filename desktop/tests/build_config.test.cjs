@@ -58,8 +58,8 @@ test("Linux ships installable packages with a local speech fallback", () => {
   assert.equal(manifest.build.linux.icon, "../assets/icon.png");
   assert.equal(manifest.desktopName, "jarvis-v4-desktop.desktop");
   assert.equal(manifest.build.linux.syncDesktopName, true);
-  assert.equal(manifest.homepage, "https://github.com/Samirprogramm/jarvis-v4");
-  assert.equal(manifest.repository.url, "https://github.com/Samirprogramm/jarvis-v4.git");
+  assert.equal(manifest.homepage, "https://github.com/samirtest378/jarvis-v4");
+  assert.equal(manifest.repository.url, "https://github.com/samirtest378/jarvis-v4.git");
 });
 
 test("desktop privacy shortcuts cover Windows known folders and Linux settings", () => {
@@ -100,6 +100,16 @@ test("Windows launches share one app identity, one window and the current logo",
   assert.ok(icon.readUInt16LE(4) >= 7, "Windows icon must contain taskbar and shortcut sizes");
 });
 
+test("Google consent can use the packaged OAuth client and reconnect stays one click", () => {
+  const source = fs.readFileSync(path.join(desktopRoot, "main.cjs"), "utf8");
+  assert.match(source, /values\?\.clientId \|\| configured\.googleOauthClientId/);
+  assert.match(source, /requestedSecret \|\| configured\.googleOauthClientSecret/);
+  const disconnectBody = source.match(/async function disconnectGoogleAccount\(\)[\s\S]*?return \{ success: true, connected: false \};\n\}/)?.[0] || "";
+  assert.match(disconnectBody, /delete store\.googleRefreshToken/);
+  assert.doesNotMatch(disconnectBody, /delete store\.googleOauthClientId/);
+  assert.doesNotMatch(disconnectBody, /delete store\.googleOauthClientSecret/);
+});
+
 test("Windows voice capture stays smooth without wasting idle CPU", () => {
   const mainSource = fs.readFileSync(path.join(desktopRoot, "main.cjs"), "utf8");
   const preloadSource = fs.readFileSync(path.join(desktopRoot, "preload.cjs"), "utf8");
@@ -137,16 +147,16 @@ test("desktop releases include a separately built offline speech runtime", () =>
   assert.match(manifest.scripts["build:dir"], /build:speech/);
 });
 
-test("every installer embeds the same platform-native bilingual voice", () => {
+test("the Windows installer embeds the verified Windows bilingual voice", () => {
   const voiceResource = manifest.build.extraResources.find((entry) => entry.to === "voice-pack");
   assert.ok(voiceResource, "bundled voice-pack resource is required");
   assert.equal(voiceResource.from, "bundled-voice-pack");
   const workflow = fs.readFileSync(path.resolve(desktopRoot, "..", ".github", "workflows", "build-installers.yml"), "utf8");
   assert.match(workflow, /stage_bundled_voice_pack\.py/);
-  assert.match(workflow, /matrix\.voice_platform/);
-  assert.match(workflow, /matrix\.voice_arch/);
+  assert.match(workflow, /--platform win32/);
+  assert.match(workflow, /--arch x64/);
   assert.match(workflow, /VOICE_RELEASE_TAG: v4\.1\.1/);
-  assert.match(workflow, /JARVIS-v4-Smooth-Bilingual-Voice-4\.1\.1-/);
+  assert.match(workflow, /JARVIS-v4-Smooth-Bilingual-Voice-4\.1\.1-win32-x64\.jarvisvoice/);
 });
 
 test("desktop selects the bundled native voice and migrates the previous Mac pack", () => {
@@ -216,21 +226,19 @@ test("unpacked build apps are excluded from Spotlight app discovery", (t) => {
   assert.equal(fs.existsSync(path.join(appOutDir, ".metadata_never_index")), true);
 });
 
-test("release automation builds speech before tests on macOS, Windows and Linux", () => {
+test("release automation is Windows-only and cannot publish an unsigned sale build", () => {
   const workflow = fs.readFileSync(path.resolve(desktopRoot, "..", ".github", "workflows", "build-installers.yml"), "utf8");
-  assert.match(workflow, /macos-15-intel/);
   assert.match(workflow, /windows-2025/);
-  assert.match(workflow, /ubuntu-24\.04/);
-  assert.match(workflow, /Linux x64 AppImage/);
-  assert.match(workflow, /Linux x64 DEB/);
-  assert.match(workflow, /matrix\.linux_target/);
+  assert.doesNotMatch(workflow, /macos-15|ubuntu-24\.04/);
+  assert.match(workflow, /name: Windows x64 sale installer/);
   assert.match(workflow, /compression-level: 0/);
   assert.match(workflow, /npm --prefix desktop run build:speech/);
-  assert.match(workflow, /npm --prefix desktop run build -- --\$\{\{ matrix\.builder \}\}/);
+  assert.match(workflow, /npm --prefix desktop run build -- --win/);
   assert.match(workflow, /--publish never/);
-  assert.match(workflow, /Build signed installer[\s\S]*CSC_LINK: \$\{\{ secrets\.MAC_CSC_LINK \}\}/);
+  assert.match(workflow, /Build signed installer[\s\S]*CSC_LINK: \$\{\{ secrets\.WIN_CSC_LINK \}\}/);
+  assert.match(workflow, /Publish verified Windows installer[\s\S]*inputs\.release_mode == 'signed'/);
   assert.match(workflow, /Build JARVIS v4 installers/);
-  assert.match(workflow, /jarvis-v4-\$\{\{ matrix\.artifact \}\}/);
+  assert.match(workflow, /jarvis-v4-windows-x64/);
   assert.doesNotMatch(workflow, /JARVIS-v3|jarvis-v3|JARVIS v3/);
 });
 

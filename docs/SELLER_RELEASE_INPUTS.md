@@ -38,16 +38,12 @@ or API secrets in this repository.
 
 ## Distribution
 
-- Apple Developer team ID:
-- Developer ID certificate name:
-- Notarization method: App Store Connect API key or Apple ID
 - Public HTTPS download origin:
 - Published SHA-256 checksum page:
 - Update channel decision:
-- Clean Apple Silicon test machine:
-- Clean Intel Mac test machine, if supported:
-- Windows signing provider/certificate, if Windows is sold:
-- Clean Windows x64 test machine, if Windows is sold:
+- Windows signing provider/certificate:
+- Clean Windows 10 x64 test machine:
+- Clean Windows 11 x64 test machine:
 
 ## Optional connected accounts
 
