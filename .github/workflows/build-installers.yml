@@ -11,16 +11,30 @@ on:
         options:
           - test
           - signed
+      target:
+        description: Build every platform or only Windows
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - windows
+      publish_release:
+        description: Replace the Windows installer in v4.1.1 after verification
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     name: ${{ matrix.name }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || matrix.platform == inputs.target }}
     strategy:
       fail-fast: false
       matrix:
@@ -165,3 +179,10 @@ jobs:
             release/JARVIS-v4-*.AppImage
             release/JARVIS-v4-*.deb
             release/JARVIS-v4-*-SHA256SUMS.txt
+
+      - name: Publish verified Windows installer
+        if: matrix.platform == 'windows' && inputs.publish_release == true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload v4.1.1 release/JARVIS-v4-*.exe --repo "$GITHUB_REPOSITORY" --clobber
