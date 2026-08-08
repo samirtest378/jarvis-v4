@@ -63,9 +63,31 @@ def test_long_answers_are_split_at_sentence_boundaries() -> None:
     assert " ".join(segments).replace("  ", " ").strip() == text.strip()
 
 
+def test_long_unpunctuated_answer_never_splits_a_word() -> None:
+    words = [f"status{index}" for index in range(80)]
+    segments = neutts_engine._split_text(" ".join(words))
+
+    assert len(segments) > 1
+    assert [word for segment in segments for word in segment.split()] == words
+    assert all(len(segment) <= neutts_engine.MAX_SEGMENT_CHARACTERS for segment in segments)
+
+
 def test_generation_budget_is_bounded() -> None:
-    assert neutts_engine._token_budget("Ja.") >= 80
-    assert neutts_engine._token_budget("Sehr langer Satz. " * 500) == 900
+    assert neutts_engine._token_budget("Ja.") >= 72
+    assert neutts_engine._token_budget("Sehr langer Satz. " * 500) == 650
+
+
+def test_generation_budget_does_not_allow_open_ended_babble() -> None:
+    assert neutts_engine._token_budget("Alle Systeme sind bereit.") < 150
+
+
+def test_symbols_are_spoken_naturally_or_silenced() -> None:
+    assert neutts_engine._normalize_text("25% & fertig )(/ç*\".", "de") == (
+        "25 Prozent und fertig c."
+    )
+    assert neutts_engine._normalize_text("25% & ready )(/ç*\".", "en") == (
+        "25 percent and ready c."
+    )
 
 
 def test_incomplete_first_clause_is_below_the_duration_floor() -> None:

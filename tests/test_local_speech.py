@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import server
+from scripts import prepare_speech_runtime
 
 
 def test_local_speech_status_requires_both_engine_and_model(monkeypatch, tmp_path: Path):
@@ -17,12 +18,18 @@ def test_local_speech_status_requires_both_engine_and_model(monkeypatch, tmp_pat
     assert service.status()["available"] is False
     (tmp_path / ("whisper-server.exe" if server.sys.platform == "win32" else "whisper-server")).write_bytes(b"engine")
     assert service.status()["available"] is False
-    (tmp_path / "ggml-base.bin").write_bytes(b"model")
+    model = tmp_path / "ggml-base.bin"
+    model.write_bytes(b"model")
+    assert service.status()["available"] is False
+    vad_model = tmp_path / "ggml-silero-v6.2.0.bin"
+    vad_model.write_bytes(b"vad")
 
     status = service.status()
     assert status["available"] is True
     assert status["local"] is True
     assert status["engine"] == "whisper.cpp"
+    assert status["vad_model"] == "ggml-silero-v6.2.0.bin"
+    assert status["device"] == "cpu"
     assert status["memory_budget_mb"] == 2560
 
 
@@ -40,6 +47,16 @@ def test_local_speech_refuses_models_that_can_break_the_memory_budget(monkeypatc
 
     assert status["available"] is False
     assert status["memory_budget_mb"] == 2560
+
+
+def test_release_runtime_is_cpu_only_and_pins_silero_vad():
+    source = Path(prepare_speech_runtime.__file__).read_text(encoding="utf-8")
+    assert '"-DGGML_CUDA=OFF"' in source
+    assert '"-DGGML_VULKAN=OFF"' in source
+    assert prepare_speech_runtime.VAD_MODEL_NAME == "ggml-silero-v6.2.0.bin"
+    assert prepare_speech_runtime.VAD_MODEL_SHA256 == (
+        "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987"
+    )
 
 
 def test_local_speech_rejects_non_wav_without_starting_engine():

@@ -179,6 +179,8 @@ test("the packaging hook verifies the copied speech runtime and pinned model", (
   assert.match(source, /assertSpeechRuntime\(context\)/);
   assert.match(source, /317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1/);
   assert.match(source, /ggml-large-v3-turbo-q8_0\.bin/);
+  assert.match(source, /ggml-silero-v6\.2\.0\.bin/);
+  assert.match(source, /2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987/);
   assert.match(source, /WHISPER_CPP_LICENSE\.txt/);
   assert.match(source, /whisper-server\.exe/);
 });

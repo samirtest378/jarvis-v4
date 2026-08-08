@@ -183,8 +183,8 @@ def test_every_transcription_is_primed_with_the_words_jarvis_hears_most(monkeypa
     asyncio.run(server._transcribe_openai(WAV, None))
     hint = client.payloads[0]["prompt"]
     assert "JARVIS" in hint
-    # Both languages, because any single sentence may be either.
-    assert "öffne" in hint and "open" in hint
+    assert "Kalender" in hint and "Gmail" in hint
+    assert len(hint) < 120
 
 
 def test_an_explicit_language_is_still_passed_through(monkeypatch):
@@ -292,7 +292,6 @@ def test_local_recognition_confidence_is_length_weighted():
     [
         ({"text": "Hallo JARVIS.", "language": "German"}, "Hallo JARVIS."),
         ({"text": "Hello JARVIS.", "language": "English"}, "Hello JARVIS."),
-        ({"text": "Jak się masz?", "language": "Polish"}, ""),
     ],
 )
 def test_automatic_local_recognition_is_strictly_bilingual(monkeypatch, payload, expected):
@@ -305,9 +304,36 @@ def test_automatic_local_recognition_is_strictly_bilingual(monkeypatch, payload,
     assert asyncio.run(service.transcribe(WAV, "auto")) == expected
     assert client.payloads[0]["response_format"] == "verbose_json"
     assert client.payloads[0]["no_language_probabilities"] == "true"
+    assert client.payloads[0]["vad"] == "true"
+    assert client.payloads[0]["vad_speech_pad_ms"] == "250"
     assert "JARVIS" in client.payloads[0]["prompt"]
-    assert "öffne" in client.payloads[0]["prompt"]
-    assert "open" in client.payloads[0]["prompt"]
+
+
+def test_unsupported_auto_label_recovers_german_or_english(monkeypatch):
+    client = _FakeClient([
+        _FakeResponse(200, {
+            "text": "Open mijn kalender.",
+            "language": "Dutch",
+            "segments": [{"text": "Open mijn kalender.", "avg_logprob": -0.18}],
+        }),
+        _FakeResponse(200, {
+            "text": "Öffne meinen Kalender.",
+            "language": "German",
+            "segments": [{"text": "Öffne meinen Kalender.", "avg_logprob": -0.09}],
+        }),
+        _FakeResponse(200, {
+            "text": "Open my calendar.",
+            "language": "English",
+            "segments": [{"text": "Open my calendar.", "avg_logprob": -0.52}],
+        }),
+    ])
+    monkeypatch.setattr(server.httpx, "AsyncClient", lambda **_kwargs: client)
+    service = server.LocalSpeechRecognition()
+    service.process = SimpleNamespace(returncode=None)
+    service.port = 12345
+
+    assert asyncio.run(service.transcribe(WAV, "auto")) == "Öffne meinen Kalender."
+    assert [payload["language"] for payload in client.payloads] == ["auto", "de", "en"]
 
 
 def test_weak_auto_decode_retries_only_the_other_conversation_language(monkeypatch):

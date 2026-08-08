@@ -20,9 +20,8 @@ export function shouldSubmitSpeechWindow(state) {
     ? state.sampleRate
     : 16000;
   const seconds = Math.max(0, state.sampleCount) / sampleRate;
-  // Two normal browser frames are roughly 170 ms. That catches short natural
-  // replies such as "ja" and "yes"; the adaptive energy threshold still
-  // rejects a single click or bump.
+  // 120 ms catches short replies such as "ja" and "yes" while still
+  // rejecting a single click or bump.
   const voicedSamples = Number(state.voicedSamples);
   const trailingSilenceSamples = Number(state.trailingSilenceSamples);
   const preciseDurations = Number.isFinite(voicedSamples)
@@ -32,19 +31,46 @@ export function shouldSubmitSpeechWindow(state) {
     : state.voicedFrames >= 2;
   if (!hasSpeech) return false;
 
-  // At the usual 48 kHz / 4096-sample browser buffer, two quiet frames are
-  // about 170 ms. Combined with the adaptive voice threshold and retained
-  // pre-roll this ends "ja", "yes", and short app commands promptly without
-  // clipping their first or final consonant.
+  // About 320 ms tolerates a natural thinking pause in German and English.
   const enoughTrailingSilence = preciseDurations
-    ? trailingSilenceSamples >= sampleRate * 0.22
-    : state.trailingSilenceFrames >= 2;
+    ? trailingSilenceSamples >= sampleRate * 0.32
+    : state.trailingSilenceFrames >= 7;
   const naturalEndpoint = seconds >= 0.55 && enoughTrailingSilence;
   // Long, natural questions must not be chopped into unrelated fragments.
   // Silence still submits short commands quickly; this upper bound exists only
   // for someone who speaks continuously without pausing.
-  const boundedContinuousSpeech = seconds >= 10;
+  const boundedContinuousSpeech = seconds >= 15;
   return naturalEndpoint || boundedContinuousSpeech;
+}
+
+/**
+ * Classify a microphone block without learning immediate speech as noise.
+ * @param {{rms: number, noiseFloor: number, calibrationFrames: number, speechStarted: boolean}} state
+ * @returns {{voiced: boolean, noiseFloor: number, calibrationFrames: number}}
+ */
+export function classifySpeechFrame(state) {
+  const rms = Number.isFinite(state.rms) ? Math.max(0, state.rms) : 0;
+  let noiseFloor = Number.isFinite(state.noiseFloor)
+    ? Math.max(0.0015, Math.min(0.08, state.noiseFloor))
+    : 0.004;
+  const calibrationFrames = Math.max(0, Math.floor(state.calibrationFrames || 0));
+  const calibrating = calibrationFrames < 6;
+  const speechStarted = state.speechStarted === true;
+  const multiplier = speechStarted ? 1.30 : calibrating ? 1.40 : 1.80;
+  const minimum = calibrating ? 0.006 : 0.0045;
+  const threshold = Math.max(minimum, Math.min(0.18, noiseFloor * multiplier));
+  const voiced = rms > threshold;
+
+  if (!voiced && !speechStarted) {
+    const boundedRms = Math.max(0.0015, Math.min(0.08, rms));
+    const weight = calibrating ? 0.35 : 0.03;
+    noiseFloor = (noiseFloor * (1 - weight)) + (boundedRms * weight);
+  }
+  return {
+    voiced,
+    noiseFloor,
+    calibrationFrames: calibrating ? calibrationFrames + 1 : calibrationFrames,
+  };
 }
 
 /**

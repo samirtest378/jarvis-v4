@@ -6,6 +6,7 @@ import { floatToPcmWav } from "./speech_audio.js";
 import {
   audioPlaybackWatchdogMs,
   browserSpeechWatchdogMs,
+  classifySpeechFrame,
   shouldSubmitSpeechWindow,
 } from "./voice_activity.js";
 
@@ -148,7 +149,7 @@ function createRecordedSpeechInput(
   let processor: ScriptProcessorNode | AudioWorkletNode | null = null;
   let silentGain: GainNode | null = null;
   let samples: number[] = [];
-  let noiseFloor = 0.008;
+  let noiseFloor = 0.004;
   let calibrationFrames = 0;
   let voicedFrames = 0;
   let voicedSamples = 0;
@@ -189,7 +190,7 @@ function createRecordedSpeechInput(
     processor = null;
     silentGain = null;
     samples = [];
-    noiseFloor = 0.008;
+    noiseFloor = 0.004;
     calibrationFrames = 0;
     voicedFrames = 0;
     voicedSamples = 0;
@@ -221,7 +222,7 @@ function createRecordedSpeechInput(
     }
     inferencePending = true;
     const rate = audioContext.sampleRate;
-    const window = new Float32Array(samples.slice(-Math.floor(rate * 12)));
+    const window = new Float32Array(samples.slice(-Math.floor(rate * 15)));
     const averageRms = rmsFrames > 0 ? rmsTotal / rmsFrames : 0;
     // Start the next utterance cleanly. Audio that arrives while inference is
     // running is appended by the processor and remains available afterwards.
@@ -296,39 +297,23 @@ function createRecordedSpeechInput(
         const rms = Math.sqrt(energy / channel.length);
         rmsTotal += rms;
         rmsFrames += 1;
-        if (calibrationFrames < 6) {
-          // A person may speak immediately after enabling the microphone. Cap
-          // startup calibration so their first word never becomes the room
-          // "noise" baseline and disappears.
-          noiseFloor = calibrationFrames === 0
-            ? Math.min(0.012, Math.max(0.002, rms))
-            : Math.min(noiseFloor, Math.max(0.002, rms));
-          calibrationFrames += 1;
-          if (rms > Math.max(0.01, noiseFloor * 2)) {
-            voicedFrames += 1;
-            voicedSamples += channel.length;
-            trailingSilenceFrames = 0;
-            trailingSilenceSamples = 0;
-            speechStarted = true;
-          }
-        } else {
-          // Hysteresis after speech starts keeps quiet final syllables; before
-          // speech, the higher threshold avoids waking on steady fan noise.
-          const multiplier = speechStarted ? 1.35 : 1.8;
-          const voiceThreshold = Math.max(0.0045, Math.min(0.18, noiseFloor * multiplier));
-          if (rms > voiceThreshold) {
-            voicedFrames += 1;
-            voicedSamples += channel.length;
-            trailingSilenceFrames = 0;
-            trailingSilenceSamples = 0;
-            speechStarted = true;
-          } else {
-            if (speechStarted) {
-              trailingSilenceFrames += 1;
-              trailingSilenceSamples += channel.length;
-            }
-            else noiseFloor = (noiseFloor * 0.97) + (rms * 0.03);
-          }
+        const classified = classifySpeechFrame({
+          rms,
+          noiseFloor,
+          calibrationFrames,
+          speechStarted,
+        });
+        noiseFloor = classified.noiseFloor;
+        calibrationFrames = classified.calibrationFrames;
+        if (classified.voiced) {
+          voicedFrames += 1;
+          voicedSamples += channel.length;
+          trailingSilenceFrames = 0;
+          trailingSilenceSamples = 0;
+          speechStarted = true;
+        } else if (speechStarted) {
+          trailingSilenceFrames += 1;
+          trailingSilenceSamples += channel.length;
         }
         if (audioContext && !speechStarted && samples.length > audioContext.sampleRate * 0.45) {
           // Retain enough lead-in to preserve the first consonant, but do not
@@ -347,7 +332,7 @@ function createRecordedSpeechInput(
             trailingSilenceFrames,
             trailingSilenceSamples,
           })
-          || samples.length >= audioContext.sampleRate * 10
+          || samples.length >= audioContext.sampleRate * 15
         )) void submitWindow(generation);
       };
 

@@ -22,6 +22,9 @@ SOURCE_SHA256 = "f8e632016ceae556f3132a16c7f704be1e7715595041f474fa81a2b64c1abf7
 MODEL_NAME = "ggml-large-v3-turbo-q8_0.bin"
 MODEL_URL = f"https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/{MODEL_NAME}"
 MODEL_SHA256 = "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1"
+VAD_MODEL_NAME = "ggml-silero-v6.2.0.bin"
+VAD_MODEL_URL = f"https://huggingface.co/ggml-org/whisper-vad/resolve/main/{VAD_MODEL_NAME}"
+VAD_MODEL_SHA256 = "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987"
 
 
 def sha256(path: Path) -> str:
@@ -94,6 +97,12 @@ def build_runtime() -> Path:
         "-DWHISPER_SDL2=OFF",
         "-DBUILD_SHARED_LIBS=OFF",
         "-DGGML_NATIVE=OFF",
+        "-DGGML_CUDA=OFF",
+        "-DGGML_VULKAN=OFF",
+        "-DGGML_SYCL=OFF",
+        "-DGGML_OPENCL=OFF",
+        "-DGGML_METAL=OFF",
+        "-DWHISPER_COREML=OFF",
         "-DCMAKE_BUILD_TYPE=Release",
     ]
     subprocess.run(command, check=True)
@@ -122,10 +131,27 @@ def main() -> int:
             shutil.copy2(reusable, model_cache)
     download(MODEL_URL, model_cache, MODEL_SHA256)
 
+    vad_cache = CACHE / VAD_MODEL_NAME
+    if not vad_cache.exists():
+        reusable_vad_models = [
+            ROOT / "build" / "speech-model-upgrade" / VAD_MODEL_NAME,
+            Path.home() / ".whisper-models" / VAD_MODEL_NAME,
+            OUTPUT / VAD_MODEL_NAME,
+        ]
+        reusable_vad = next(
+            (path for path in reusable_vad_models if path.is_file() and sha256(path) == VAD_MODEL_SHA256),
+            None,
+        )
+        if reusable_vad:
+            vad_cache.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(reusable_vad, vad_cache)
+    download(VAD_MODEL_URL, vad_cache, VAD_MODEL_SHA256)
+
     OUTPUT.mkdir(parents=True, exist_ok=True)
     output_name = "whisper-server.exe" if os.name == "nt" else "whisper-server"
     shutil.copy2(executable, OUTPUT / output_name)
     shutil.copy2(model_cache, OUTPUT / MODEL_NAME)
+    shutil.copy2(vad_cache, OUTPUT / VAD_MODEL_NAME)
     # Keep the release to one recognition model. Q8 preserves far more weight
     # precision than the old Q5 pack while Turbo's distilled decoder keeps a
     # spoken command responsive within the shared 2.5 GiB desktop budget on
@@ -141,7 +167,13 @@ def main() -> int:
     source_license = ROOT / "build" / f"whisper.cpp-{VERSION}-{sys.platform}-{platform.machine().lower().replace('amd64', 'x86_64')}" / f"whisper.cpp-{VERSION}" / "LICENSE"
     shutil.copy2(source_license, OUTPUT / "WHISPER_CPP_LICENSE.txt")
     (OUTPUT / "RUNTIME.txt").write_text(
-        f"whisper.cpp v{VERSION}\nmodel: {MODEL_NAME}\nmodel sha256: {MODEL_SHA256}\n",
+        (
+            f"whisper.cpp v{VERSION}\n"
+            f"model: {MODEL_NAME}\n"
+            f"model sha256: {MODEL_SHA256}\n"
+            f"vad model: {VAD_MODEL_NAME}\n"
+            f"vad model sha256: {VAD_MODEL_SHA256}\n"
+        ),
         encoding="utf-8",
     )
     if os.name != "nt":

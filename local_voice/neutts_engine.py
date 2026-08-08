@@ -44,7 +44,7 @@ import numpy as np
 PROTOCOL_VERSION = 1
 SAMPLE_RATE = 24_000
 MAX_TEXT_LENGTH = 2_000
-MAX_SEGMENT_CHARACTERS = 260
+MAX_SEGMENT_CHARACTERS = 180
 # Deterministic candidates scored against the selected V3 recordings. The
 # German Tuned 1 and English Old Reference profiles have different deliveries.
 LANGUAGE_SEEDS = {
@@ -194,7 +194,25 @@ def _configure_espeak(runtime_root: Path) -> _EspeakRuntime:
 
 def _normalize_text(text: str, language: str) -> str:
     normalized = unicodedata.normalize("NFKC", text.translate(_QUOTE_MAP))
+    # Symbols are either converted into natural German/English words or into a
+    # pause. This prevents punctuation runs such as ")(/&%*\"+" from becoming
+    # invented speech while keeping periods and commas for natural prosody.
+    conjunction = "und" if language == "de" else "and"
+    percent = "Prozent" if language == "de" else "percent"
+    euro = "Euro" if language == "de" else "euros"
+    dollar = "Dollar" if language == "de" else "dollars"
+    normalized = normalized.replace("&", f" {conjunction} ")
+    normalized = re.sub(r"(?<=\d)\s*%", f" {percent}", normalized)
+    normalized = normalized.replace("%", " ")
+    normalized = re.sub(r"(?<=\d)\s*€", f" {euro}", normalized)
+    normalized = re.sub(r"\$\s*(?=\d)", "", normalized)
+    normalized = re.sub(r"(?<=\d)\s*\$", f" {dollar}", normalized)
+    normalized = normalized.replace("++", " plus plus ").replace("+", " plus ")
+    normalized = re.sub(r"[\\/|*_#@~^=<>\[\]{}()\"']+", " ", normalized)
+    normalized = re.sub(r"\s*[-–—]{2,}\s*", ", ", normalized)
+    normalized = normalized.replace("ç", "c").replace("Ç", "C")
     normalized = re.sub(r"\s+", " ", normalized).strip()
+    normalized = re.sub(r"\s+([,.;:!?])", r"\1", normalized)
     if language == "de":
         # German eSpeak reads "Jarvis" with a leading /j/. The hidden spelling
         # below produces the intended English-style /dʒɑːrvɪs/ while the UI
@@ -208,7 +226,7 @@ def _normalize_text(text: str, language: str) -> str:
 
 
 def _split_text(text: str) -> list[str]:
-    """Keep prompts inside the 2048-token context without choppy word cuts."""
+    """Keep prompts bounded without ever cutting a spoken word in half."""
     text = re.sub(r"\s+", " ", text).strip()
     if len(text) <= MAX_SEGMENT_CHARACTERS:
         return [text]
@@ -216,14 +234,18 @@ def _split_text(text: str) -> list[str]:
     segments: list[str] = []
     current = ""
     for sentence in sentences:
-        pieces = (
-            [sentence]
-            if len(sentence) <= MAX_SEGMENT_CHARACTERS
-            else [
-                sentence[index : index + MAX_SEGMENT_CHARACTERS]
-                for index in range(0, len(sentence), MAX_SEGMENT_CHARACTERS)
-            ]
-        )
+        pieces: list[str] = []
+        remaining = sentence
+        while len(remaining) > MAX_SEGMENT_CHARACTERS:
+            boundary = max(
+                remaining.rfind(mark, 0, MAX_SEGMENT_CHARACTERS + 1)
+                for mark in ("; ", ", ", " ")
+            )
+            boundary = MAX_SEGMENT_CHARACTERS if boundary <= 0 else boundary + 1
+            pieces.append(remaining[:boundary].strip())
+            remaining = remaining[boundary:].strip()
+        if remaining:
+            pieces.append(remaining)
         for piece in pieces:
             candidate = f"{current} {piece}".strip()
             if current and len(candidate) > MAX_SEGMENT_CHARACTERS:
@@ -238,7 +260,9 @@ def _split_text(text: str) -> list[str]:
 
 def _token_budget(text: str) -> int:
     spoken = sum(character.isalnum() for character in text)
-    return min(900, max(80, spoken * 5 + 50))
+    # Bound generation tightly enough that a missed end token cannot continue
+    # into unrelated babble, while retaining headroom for slow German speech.
+    return min(650, max(72, math.ceil(spoken * 3.1 + 40)))
 
 
 def _duration_bounds(text: str) -> tuple[float, float]:
@@ -249,7 +273,7 @@ def _duration_bounds(text: str) -> tuple[float, float]:
     # averages about 14 spoken characters per second; 18 leaves comfortable
     # room for quick delivery while reliably forcing the second deterministic
     # seed for an incomplete take.
-    return max(0.45, spoken / 18.0), min(22.0, max(2.0, spoken / 4.0))
+    return max(0.45, spoken / 18.0), min(16.0, max(2.0, spoken / 8.0 + 0.8))
 
 
 def _best_duration_candidate(

@@ -7,6 +7,8 @@ const path = require("node:path");
 
 const SPEECH_MODEL_NAME = "ggml-large-v3-turbo-q8_0.bin";
 const SPEECH_MODEL_SHA256 = "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1";
+const SPEECH_VAD_MODEL_NAME = "ggml-silero-v6.2.0.bin";
+const SPEECH_VAD_MODEL_SHA256 = "2aa269b785eeb53a82983a20501ddf7c1d9c48e33ab63a41391ac6c9f7fb6987";
 const SPEECH_RUNTIME_VERSION = "1.8.6";
 const SHARED_VOICE_HASHES = Object.freeze({
   "profile-en.npy": "276f750c643f95b2b6c6a0c82e90c9e6d0578661ab6fee240f8a128bbd57c75d",
@@ -87,19 +89,27 @@ function assertSpeechRuntime(context) {
   const runtime = path.join(resources, "speech-runtime");
   const executable = path.join(runtime, context.electronPlatformName === "win32" ? "whisper-server.exe" : "whisper-server");
   const model = path.join(runtime, SPEECH_MODEL_NAME);
+  const vadModel = path.join(runtime, SPEECH_VAD_MODEL_NAME);
   const license = path.join(runtime, "WHISPER_CPP_LICENSE.txt");
   const metadata = path.join(runtime, "RUNTIME.txt");
-  for (const required of [executable, model, license, metadata]) {
+  for (const required of [executable, model, vadModel, license, metadata]) {
     if (!fs.existsSync(required) || fs.statSync(required).size === 0) {
       throw new Error(`Packaged offline speech component is missing or empty: ${required}`);
     }
   }
   const runtimeText = fs.readFileSync(metadata, "utf8");
-  if (!runtimeText.includes(`whisper.cpp v${SPEECH_RUNTIME_VERSION}`) || !runtimeText.includes(SPEECH_MODEL_SHA256)) {
+  if (
+    !runtimeText.includes(`whisper.cpp v${SPEECH_RUNTIME_VERSION}`)
+    || !runtimeText.includes(SPEECH_MODEL_SHA256)
+    || !runtimeText.includes(SPEECH_VAD_MODEL_SHA256)
+  ) {
     throw new Error("Packaged offline speech metadata does not match the pinned release.");
   }
   if (sha256(model) !== SPEECH_MODEL_SHA256) {
     throw new Error("Packaged offline speech model failed its SHA-256 integrity check.");
+  }
+  if (sha256(vadModel) !== SPEECH_VAD_MODEL_SHA256) {
+    throw new Error("Packaged offline speech VAD model failed its SHA-256 integrity check.");
   }
   if (!/MIT License|Permission is hereby granted/i.test(fs.readFileSync(license, "utf8"))) {
     throw new Error("Packaged whisper.cpp license notice is invalid.");

@@ -5,6 +5,7 @@ import {
   audioPlaybackWatchdogMs,
   browserSpeechWatchdogMs,
   canExtendVoiceConversation,
+  classifySpeechFrame,
   isFatalVoiceInputError,
   shouldSubmitSpeechWindow,
 } from "../src/voice_activity.js";
@@ -16,7 +17,7 @@ test("submits a short command soon after speech ends", () => {
     voicedFrames: 6,
     voicedSamples: 0.30 * 48000,
     trailingSilenceFrames: 2,
-    trailingSilenceSamples: 0.24 * 48000,
+    trailingSilenceSamples: 0.34 * 48000,
   }), true);
 });
 
@@ -25,7 +26,7 @@ test("endpoint timing stays stable when the capture chunk size changes", () => {
     sampleCount: 0.8 * 48000,
     sampleRate: 48000,
     voicedSamples: 0.38 * 48000,
-    trailingSilenceSamples: 0.23 * 48000,
+    trailingSilenceSamples: 0.34 * 48000,
   };
   assert.equal(shouldSubmitSpeechWindow({ ...base, voicedFrames: 4, trailingSilenceFrames: 3 }), true);
   assert.equal(shouldSubmitSpeechWindow({ ...base, voicedFrames: 9, trailingSilenceFrames: 6 }), true);
@@ -62,7 +63,7 @@ test("does not submit before a short utterance has enough context", () => {
 
 test("does not cut a speaker off before the maximum window", () => {
   assert.equal(shouldSubmitSpeechWindow({
-    sampleCount: 8.2 * 48000,
+    sampleCount: 14.2 * 48000,
     sampleRate: 48000,
     voicedFrames: 12,
     trailingSilenceFrames: 1,
@@ -71,7 +72,7 @@ test("does not cut a speaker off before the maximum window", () => {
 
 test("bounds continuous speech so recognition still progresses", () => {
   assert.equal(shouldSubmitSpeechWindow({
-    sampleCount: 10.1 * 16000,
+    sampleCount: 15.1 * 16000,
     sampleRate: 16000,
     voicedFrames: 15,
     trailingSilenceFrames: 0,
@@ -98,7 +99,36 @@ test("accepts a short yes or ja after two voiced frames", () => {
     sampleCount: 0.7 * 48000,
     sampleRate: 48000,
     voicedFrames: 2,
-    trailingSilenceFrames: 2,
+    trailingSilenceFrames: 7,
+  }), true);
+});
+
+test("startup calibration detects a quiet speaker immediately", () => {
+  const result = classifySpeechFrame({
+    rms: 0.008,
+    noiseFloor: 0.004,
+    calibrationFrames: 0,
+    speechStarted: false,
+  });
+  assert.equal(result.voiced, true);
+  assert.equal(result.noiseFloor, 0.004);
+});
+
+test("endpoint waits for roughly 320 ms of trailing silence", () => {
+  const base = {
+    sampleCount: 1.0 * 48000,
+    sampleRate: 48000,
+    voicedFrames: 8,
+    voicedSamples: 0.40 * 48000,
+    trailingSilenceFrames: 8,
+  };
+  assert.equal(shouldSubmitSpeechWindow({
+    ...base,
+    trailingSilenceSamples: 0.319 * 48000,
+  }), false);
+  assert.equal(shouldSubmitSpeechWindow({
+    ...base,
+    trailingSilenceSamples: 0.320 * 48000,
   }), true);
 });
 

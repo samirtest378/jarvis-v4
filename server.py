@@ -920,12 +920,7 @@ def format_projects_for_prompt(projects: list[dict]) -> str:
 # hears constantly are worth far more here than a long word list, and both
 # languages belong in it because a sentence can be either.
 STT_VOCABULARY_HINT = (
-    "Hey JARVIS. Hallo JARVIS. JARVIS, öffne Spotify. JARVIS, öffne YouTube. "
-    "Zeig mir meinen Kalender. Was steht heute an? Prüfe meine E-Mails. Öffne Notizen. "
-    "Öffne die Einstellungen. Zeige meine Downloads. Was ist auf meinem Bildschirm? "
-    "Hey JARVIS. Hello JARVIS. JARVIS, open Spotify. JARVIS, open YouTube. "
-    "Show me my calendar. What's on today? Check my email. Open Notes. "
-    "Open Settings. Show my Downloads. What is on my screen? Claude Code."
+    "JARVIS, Spotify, YouTube, Claude Code, Gmail, Kalender, E-Mails, Downloads."
 )
 
 STT_CORRECTIONS = {
@@ -1223,48 +1218,51 @@ async def classify_intent(text: str, client: anthropic.AsyncAnthropic) -> dict:
 # ---------------------------------------------------------------------------
 
 def strip_markdown_for_tts(text: str) -> str:
-    """Strip ALL markdown from text before sending to TTS."""
+    """Convert a rendered assistant reply into clean spoken prose."""
     import re as _md_re
-    result = text
+    import unicodedata as _unicode
+
+    # Private control tags and their payload must never be read aloud.
+    result = _md_re.sub(
+        r"\[ACTION:[A-Z_]+\][\s\S]*$", "", text, flags=_md_re.IGNORECASE
+    )
     # Remove code blocks (``` ... ```)
     result = _md_re.sub(r"```[\s\S]*?```", "", result)
-    # Remove inline code
-    result = result.replace("`", "")
+    # Keep the readable content of inline code, not the formatting marks.
+    result = _md_re.sub(r"`([^`]+)`", r"\1", result)
     # Remove bold/italic markers
     result = result.replace("**", "").replace("*", "")
     # Remove headers
     result = _md_re.sub(r"^#{1,6}\s*", "", result, flags=_md_re.MULTILINE)
-    # Convert [text](url) to just text
+    # Convert [text](url) to text and discard bare URLs. Query strings and
+    # percent escapes otherwise sound like random syllables.
     result = _md_re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", result)
+    result = _md_re.sub(r"https?://\S+|www\.\S+", "", result, flags=_md_re.IGNORECASE)
+    result = _md_re.sub(r"<[^>]+>", "", result)
     # Remove bullet points
     result = _md_re.sub(r"^\s*[-*+]\s+", "", result, flags=_md_re.MULTILINE)
     # Remove numbered lists
     result = _md_re.sub(r"^\s*\d+\.\s+", "", result, flags=_md_re.MULTILINE)
-    # Double newlines to period
-    result = _md_re.sub(r"\n{2,}", ". ", result)
-    # Single newlines to space
-    result = result.replace("\n", " ")
+    # Visual line breaks are not additional full stops.
+    result = _md_re.sub(r"\s*\n+\s*", " ", result)
+    # Emoji and control codes carry no useful pronunciation. Ordinary
+    # punctuation is retained here and normalized by the bilingual engine.
+    result = "".join(
+        character
+        for character in result
+        if _unicode.category(character)[0] not in {"C", "S"}
+        or character in {"€", "$", "%", "+"}
+    )
     # Clean up multiple spaces
     result = _md_re.sub(r"\s{2,}", " ", result)
 
-    # Strip banned phrases
-    banned = ["my apologies", "i apologize", "absolutely", "great question",
-              "i'd be happy to", "of course", "how can i help",
-              "is there anything else", "i should clarify", "let me know if",
-              "feel free to"]
-    result_lower = result.lower()
-    for phrase in banned:
-        idx = result_lower.find(phrase)
-        while idx != -1:
-            # Remove the phrase and any trailing comma/dash
-            end = idx + len(phrase)
-            if end < len(result) and result[end] in " ,—-":
-                end += 1
-            result = result[:idx] + result[end:]
-            result_lower = result.lower()
-            idx = result_lower.find(phrase)
-
-    return result.strip().strip(",").strip("—").strip("-").strip()
+    result = _md_re.sub(r"([.!?])\1+", r"\1", result)
+    result = result.strip(" ,—-")
+    # A terminal pause discourages the local model from continuing a short
+    # answer beyond the requested text.
+    if result and result[-1] not in ".!?":
+        result += "."
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -2427,6 +2425,7 @@ class LocalSpeechRecognition:
     # full-precision replacements that could push the Windows/Linux recognizer
     # beyond the requested 2–3 GiB memory envelope.
     MAX_MODEL_BYTES = 1024 * 1024 * 1024
+    MAX_VAD_MODEL_BYTES = 4 * 1024 * 1024
     MEMORY_BUDGET_MB = 2560
     IDLE_TIMEOUT = 1800.0
 
@@ -2446,7 +2445,7 @@ class LocalSpeechRecognition:
     def running(self) -> bool:
         return self.process is not None and self.process.returncode is None
 
-    def _paths(self) -> tuple[Path, Path] | None:
+    def _paths(self) -> tuple[Path, Path, Path] | None:
         configured_executable = os.getenv("JARVIS_WHISPER_SERVER", "").strip()
         executable_name = "whisper-server.exe" if sys.platform == "win32" else "whisper-server"
         executable_candidates = [
@@ -2472,15 +2471,30 @@ class LocalSpeechRecognition:
             Path.home() / ".whisper-models" / "ggml-base.bin",
             Path.home() / ".whisper-models" / "ggml-small.bin",
         ]
+        configured_vad_model = os.getenv("JARVIS_WHISPER_VAD_MODEL", "").strip()
+        vad_model_candidates = [
+            Path(configured_vad_model).expanduser() if configured_vad_model else None,
+            SPEECH_RUNTIME_DIR / "ggml-silero-v6.2.0.bin",
+            Path.home() / ".whisper-models" / "ggml-silero-v6.2.0.bin",
+        ]
         executable = next((path for path in executable_candidates if path and path.is_file()), None)
         model = next((path for path in model_candidates if self._model_fits_budget(path)), None)
-        return (executable, model) if executable and model else None
+        vad_model = next((path for path in vad_model_candidates if self._vad_model_is_valid(path)), None)
+        return (executable, model, vad_model) if executable and model and vad_model else None
 
     def _model_fits_budget(self, path: Path | None) -> bool:
         if not path or not path.is_file():
             return False
         try:
             return 0 < path.stat().st_size <= self.MAX_MODEL_BYTES
+        except OSError:
+            return False
+
+    def _vad_model_is_valid(self, path: Path | None) -> bool:
+        if not path or not path.is_file():
+            return False
+        try:
+            return 0 < path.stat().st_size <= self.MAX_VAD_MODEL_BYTES
         except OSError:
             return False
 
@@ -2495,6 +2509,8 @@ class LocalSpeechRecognition:
             "available": paths is not None,
             "engine": "whisper.cpp" if paths else "system-fallback",
             "model": paths[1].name if paths else "",
+            "vad_model": paths[2].name if paths else "",
+            "device": "cpu",
             "running": self.running,
             "local": paths is not None,
             "model_bytes": model_bytes,
@@ -2524,7 +2540,7 @@ class LocalSpeechRecognition:
             paths = self._paths()
             if not paths:
                 raise RuntimeError("The bundled local speech engine is unavailable")
-            executable, model = paths
+            executable, model, vad_model = paths
             self.port = self._free_port()
             recognition_threads = _responsive_worker_threads()
             self.process = await asyncio.create_subprocess_exec(
@@ -2532,8 +2548,10 @@ class LocalSpeechRecognition:
                 "--host", "127.0.0.1",
                 "--port", str(self.port),
                 "--model", str(model),
+                "--vad-model", str(vad_model),
                 "--language", "auto",
                 "--threads", str(recognition_threads),
+                "--no-gpu",
                 # Large-v3 Turbo has only four decoder layers, so a small beam
                 # gives a large accuracy win for short German/English commands
                 # without pushing the process outside its memory budget.
@@ -2683,11 +2701,14 @@ class LocalSpeechRecognition:
                                 "best_of": "2",
                                 "beam_size": "3",
                                 "language": language_hint,
-                                # JARVIS already performs adaptive energy
-                                # gating and pre-roll in the browser. A second
-                                # VAD pass can clip the first word of short
-                                # commands, so keep it disabled here.
-                                "vad": "false",
+                                # CPU-only Silero rejects fans, clicks and
+                                # silence before Whisper can hallucinate words.
+                                "vad": "true",
+                                "vad_threshold": "0.35",
+                                "vad_min_speech_duration_ms": "80",
+                                "vad_min_silence_duration_ms": "100",
+                                "vad_speech_pad_ms": "250",
+                                "vad_samples_overlap": "0.10",
                                 # Names and bilingual command words are the
                                 # highest-value context for the compact local
                                 # model. This improves accuracy without a
@@ -2710,25 +2731,37 @@ class LocalSpeechRecognition:
                     # retry only the opposite language and retain whichever
                     # decode is measurably stronger. Confident turns stay on
                     # the single fast path.
-                    if (
-                        selected_language == "auto"
-                        and text
-                        and confidence is not None
-                        and confidence < -0.38
-                        and _is_supported_recognition_language(detected_language)
-                    ):
-                        detected = detected_language.casefold()
-                        alternate = "en" if detected.startswith("de") or detected in {"german", "deutsch"} else "de"
-                        alternate_text, alternate_language, alternate_confidence = await infer(alternate)
-                        if (
-                            alternate_text
-                            and not _has_unexpected_speech_script(alternate_text)
-                            and alternate_confidence is not None
-                            and alternate_confidence > confidence + 0.06
-                        ):
-                            text = alternate_text
-                            detected_language = alternate_language or alternate
-                            confidence = alternate_confidence
+                    if selected_language == "auto" and text:
+                        supported = _is_supported_recognition_language(detected_language)
+                        if not supported:
+                            forced_candidates: list[tuple[str, str, float | None]] = []
+                            for forced_language in ("de", "en"):
+                                forced_text, _forced_label, forced_confidence = await infer(forced_language)
+                                if forced_text and not _has_unexpected_speech_script(forced_text):
+                                    forced_candidates.append(
+                                        (forced_text, forced_language, forced_confidence)
+                                    )
+                            if forced_candidates:
+                                text, detected_language, confidence = max(
+                                    forced_candidates,
+                                    key=lambda candidate: (
+                                        candidate[2] if candidate[2] is not None else -10.0,
+                                        len(candidate[0]),
+                                    ),
+                                )
+                        elif confidence is not None and confidence < -0.38:
+                            detected = detected_language.casefold()
+                            alternate = "en" if detected.startswith("de") or detected in {"german", "deutsch"} else "de"
+                            alternate_text, _alternate_label, alternate_confidence = await infer(alternate)
+                            if (
+                                alternate_text
+                                and not _has_unexpected_speech_script(alternate_text)
+                                and alternate_confidence is not None
+                                and alternate_confidence > confidence + 0.06
+                            ):
+                                text = alternate_text
+                                detected_language = alternate
+                                confidence = alternate_confidence
                     # Automatic recognition is intentionally bilingual. Other
                     # languages and clearly unrelated scripts are treated like
                     # background noise: no model request is made and continuous
@@ -3507,7 +3540,9 @@ async def send_response_with_deferred_voice(ws, response_text: str) -> None:
         # begin immediately. Rendering a complete WAV with `say`/PowerShell and
         # converting it before playback added roughly 0.7–1.2 seconds to every
         # turn and offered no quality benefit.
-        await ws.send_json({"type": "audio", "data": "", "text": response_text, "speak": True})
+        speech_text = strip_markdown_for_tts(response_text)
+        if speech_text:
+            await ws.send_json({"type": "audio", "data": "", "text": speech_text, "speak": True})
         return
 
     speech_text = strip_markdown_for_tts(response_text)
@@ -3553,7 +3588,7 @@ async def send_response_with_deferred_voice(ws, response_text: str) -> None:
     else:
         # The renderer can still use its built-in local system voice.  The
         # duplicate text is suppressed client-side while speech is activated.
-        await ws.send_json({"type": "audio", "data": "", "text": response_text, "speak": True})
+        await ws.send_json({"type": "audio", "data": "", "text": speech_text, "speak": True})
 
 
 # ---------------------------------------------------------------------------
