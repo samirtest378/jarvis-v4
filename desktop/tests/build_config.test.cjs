@@ -154,7 +154,9 @@ test("desktop selects the bundled native voice and migrates the previous Mac pac
   assert.match(source, /function activeVoicePackDirectory\(\)/);
   assert.match(source, /env\.JARVIS_LOCAL_VOICE_PACK = activeVoicePack/);
   assert.match(source, /jarvis-v4-desktop", "voice-pack", "current"/);
-  assert.match(source, /updateVoicePreferenceFile\(\{ replaceSystemVoice: true \}\)/);
+  assert.match(source, /hasCustomVoicePackMarker/);
+  assert.match(source, /bundled-activation\.json/);
+  assert.match(source, /updateVoicePreferenceFile\(\{ forceLocalVoice: true \}\)/);
   assert.match(source, /enableBundledVoiceByDefault\(\)/);
 });
 

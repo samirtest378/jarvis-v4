@@ -12,6 +12,12 @@ const {
   withinVoicePackLimits,
 } = require("./voice_pack_limits.cjs");
 const {
+  activateLocalVoicePreferences,
+  selectActiveVoicePack,
+  voicePackIdentity,
+  voicePackSelectionMatches,
+} = require("./voice_pack_policy.cjs");
+const {
   SECRET_DEFINITIONS,
   buildBackendSecretTransfer,
   meaningfulSecret,
@@ -432,23 +438,44 @@ function bundledVoicePackDirectory() {
   return app.isPackaged ? path.join(process.resourcesPath, "voice-pack") : "";
 }
 
-function updateVoicePreferenceFile({ replaceSystemVoice = false } = {}) {
+function voicePackSelectionPath(name) {
+  return path.join(path.dirname(voicePackDirectory()), name);
+}
+
+function readVoicePackSelection(name) {
+  try {
+    const record = JSON.parse(fs.readFileSync(voicePackSelectionPath(name), "utf8"));
+    return record && typeof record === "object" ? record : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeVoicePackSelection(name, source, manifest) {
+  const target = voicePackSelectionPath(name);
+  const temporary = `${target}.tmp`;
+  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+  const marker = {
+    format_version: 1,
+    source,
+    name: typeof manifest?.name === "string" ? manifest.name : "Custom JARVIS voice",
+    ...voicePackIdentity(manifest),
+    installed_at: new Date().toISOString(),
+  };
+  fs.writeFileSync(temporary, `${JSON.stringify(marker, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, target);
+  try { fs.chmodSync(target, 0o600); } catch { /* Windows profile ACLs apply. */ }
+}
+
+function hasCustomVoicePackMarker(directory = voicePackDirectory()) {
+  return voicePackSelectionMatches(readVoicePackSelection("custom-selection.json"), readVoicePackManifest(directory), "manual-install");
+}
+
+function updateVoicePreferenceFile({ forceLocalVoice = false } = {}) {
   const target = path.join(app.getPath("userData"), "config", ".env");
   let contents = "";
   try { contents = fs.readFileSync(target, "utf8"); } catch { /* First launch. */ }
-
-  const upsert = (key, value, replaceValues = []) => {
-    const pattern = new RegExp(`^${key}=([^\\r\\n]*)$`, "m");
-    const match = contents.match(pattern);
-    if (!match) {
-      contents += `${contents && !contents.endsWith("\n") ? "\n" : ""}${key}=${value}\n`;
-    } else if (replaceValues.includes(match[1].trim().toLowerCase())) {
-      contents = contents.replace(pattern, `${key}=${value}`);
-    }
-  };
-
-  upsert("JARVIS_TTS_PROVIDER", "local", replaceSystemVoice ? ["system"] : []);
-  upsert("JARVIS_VOICE_PACK", "current", replaceSystemVoice ? ["auto", "multilingual"] : []);
+  contents = activateLocalVoicePreferences(contents, { forceLocal: forceLocalVoice });
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   const temporary = `${target}.tmp`;
   fs.writeFileSync(temporary, contents, { mode: 0o600 });
@@ -466,7 +493,7 @@ function migrateLegacyVoicePackIfNeeded() {
   // The old installation already had the user's chosen JARVIS voice. The new
   // stable app identity initially wrote the system-voice default, so restore
   // that explicit choice together with the pack migration.
-  updateVoicePreferenceFile({ replaceSystemVoice: true });
+  updateVoicePreferenceFile({ forceLocalVoice: true });
   return true;
 }
 
@@ -559,18 +586,26 @@ function voicePackStatus(directory = voicePackDirectory()) {
 
 function activeVoicePackDirectory() {
   const installed = voicePackDirectory();
-  if (voicePackStatus(installed).installed) return installed;
   const bundled = bundledVoicePackDirectory();
-  if (bundled && voicePackStatus(bundled).installed) return bundled;
-  return "";
+  const installedReady = voicePackStatus(installed).installed;
+  const bundledReady = Boolean(bundled && voicePackStatus(bundled).installed);
+  return selectActiveVoicePack({
+    installedDirectory: installed,
+    installedReady,
+    installedCustom: installedReady && hasCustomVoicePackMarker(installed),
+    bundledDirectory: bundled,
+    bundledReady,
+  });
 }
 
 function enableBundledVoiceByDefault() {
   const bundled = bundledVoicePackDirectory();
   if (!bundled || !voicePackStatus(bundled).installed) return;
-  // Add defaults only when the user has not chosen a provider yet. Existing
-  // settings remain authoritative and a custom pack can still be installed.
+  if (activeVoicePackDirectory() !== bundled) return;
+  const manifest = readVoicePackManifest(bundled);
+  if (voicePackSelectionMatches(readVoicePackSelection("bundled-activation.json"), manifest, "bundled-activation")) return;
   updateVoicePreferenceFile();
+  writeVoicePackSelection("bundled-activation.json", "bundled-activation", manifest);
 }
 
 function isSafeRelativePath(value) {
@@ -727,6 +762,8 @@ async function installVoicePack() {
     }
     fs.renameSync(root, destination);
     if (process.platform !== "win32") fs.chmodSync(path.join(destination, "bin", "jarvis-voice-engine"), 0o755);
+    writeVoicePackSelection("custom-selection.json", "manual-install", manifest);
+    updateVoicePreferenceFile({ forceLocalVoice: true });
     await startBackend();
     stopped = false;
     return { success: true, installed: true, name: manifest.name, version: manifest.version, backupCreated: Boolean(backup) };

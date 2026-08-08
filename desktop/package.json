@@ -47,6 +47,7 @@
       "secret_config.cjs",
       "single_instance.cjs",
       "voice_pack_limits.cjs",
+      "voice_pack_policy.cjs",
       "google_oauth.cjs",
       "microsoft_oauth.cjs",
       "package.json"
