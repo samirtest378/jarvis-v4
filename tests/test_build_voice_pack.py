@@ -69,6 +69,12 @@ def test_windows_voice_workflow_builds_intel_cpu_pack_and_publishes_it() -> None
 
 
 def test_windows_cpu_voice_requirements_contain_no_gpu_runtime() -> None:
+    workflow = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "workflows"
+        / "build-windows-voice.yml"
+    ).read_text(encoding="utf-8")
     requirements = (
         Path(__file__).resolve().parents[1]
         / "local_voice"
