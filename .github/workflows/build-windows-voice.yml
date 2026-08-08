@@ -32,7 +32,7 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r local_voice/requirements-windows-cpu.txt
+          python -m pip install --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu -r local_voice/requirements-windows-cpu.txt
 
       - name: Download the matched German and English profiles
         shell: pwsh

@@ -3,5 +3,5 @@
 numpy==2.4.6
 onnxruntime==1.23.2
 pyinstaller==6.21.0
-llama-cpp-python==0.3.4
+llama-cpp-python==0.3.34
 espeakng-loader==0.2.4

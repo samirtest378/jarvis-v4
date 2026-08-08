@@ -76,7 +76,8 @@ def test_windows_cpu_voice_requirements_contain_no_gpu_runtime() -> None:
     ).read_text(encoding="utf-8")
 
     assert "onnxruntime==1.23.2" in requirements
-    assert "llama-cpp-python==0.3.4" in requirements
+    assert "llama-cpp-python==0.3.34" in requirements
+    assert "llama-cpp-python/whl/cpu" in workflow
     assert "espeakng-loader==0.2.4" in requirements
     assert "cuda" not in requirements.lower()
 
