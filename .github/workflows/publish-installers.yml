@@ -1,0 +1,64 @@
+name: Publish JARVIS v4 installers
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful installer workflow run ID
+        required: true
+        type: string
+      release_tag:
+        description: Existing GitHub release tag
+        required: true
+        default: v4.1.1
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.label }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Apple Silicon
+            artifact: jarvis-v4-macos-arm64
+            extension: dmg
+          - label: macOS Intel
+            artifact: jarvis-v4-macos-x64
+            extension: dmg
+          - label: Windows x64
+            artifact: jarvis-v4-windows-x64
+            extension: exe
+          - label: Linux x64 AppImage
+            artifact: jarvis-v4-linux-x64-appimage
+            extension: AppImage
+          - label: Linux x64 DEB
+            artifact: jarvis-v4-linux-x64-deb
+            extension: deb
+
+    steps:
+      - name: Download verified installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.run_id }}
+          name: ${{ matrix.artifact }}
+          path: installer
+
+      - name: Publish the single-file installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          EXTENSION: ${{ matrix.extension }}
+        run: |
+          asset="$(find installer -type f -name "*.${EXTENSION}" -print -quit)"
+          test -n "$asset"
+          test "$(find installer -type f -name "*.${EXTENSION}" | wc -l | tr -d ' ')" = "1"
+          gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY" --clobber
