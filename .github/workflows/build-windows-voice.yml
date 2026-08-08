@@ -9,7 +9,9 @@ permissions:
 jobs:
   windows-voice:
     name: Windows x64 · Intel CPU
-    runs-on: windows-2025
+    # llama-cpp-python 0.3.4 is verified with the stable VS 2022 toolchain.
+    # The preview VS 2026 image breaks its bundled llama.cpp C++ build.
+    runs-on: windows-2022
     timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}

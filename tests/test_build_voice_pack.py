@@ -53,7 +53,7 @@ def test_windows_voice_workflow_builds_intel_cpu_pack_and_publishes_it() -> None
         / "build-windows-voice.yml"
     ).read_text(encoding="utf-8")
 
-    assert "runs-on: windows-2025" in workflow
+    assert "runs-on: windows-2022" in workflow
     assert "requirements-windows-cpu.txt" in workflow
     assert "onnxruntime-gpu" not in workflow
     assert "/whl/cu" not in workflow
