@@ -63,7 +63,7 @@ jobs:
           Copy-Item assets/voice/jarvis-v3-tuned-1-de.npy "$env:VOICE_BASE/profile-de.npy" -Force
           Copy-Item assets/voice/jarvis-v3-selected-profiles.json "$env:VOICE_BASE/profiles.json" -Force
           $germanHash = (Get-FileHash "$env:VOICE_BASE/profile-de.npy" -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($germanHash -ne "279ff6c17daa00db4cffe872a7a8a9c70814782077f0514c51c6851469d1b22a") {
+          if ($germanHash -ne "03d0612714da53a5851368fa03497397bcc4ccd39b46f2cd343b7b9d4d25a191") {
             throw "The selected V3 Tuned 1 German profile is missing or changed"
           }
 

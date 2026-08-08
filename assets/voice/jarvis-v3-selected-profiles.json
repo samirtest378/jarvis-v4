@@ -6,9 +6,9 @@
     "profile": "profile-en.npy"
   },
   "de": {
-    "reference_text": "Ich öffne jetzt den Kalender für Sie.",
-    "reference_seconds": 1.76,
-    "codes": 88,
+    "reference_text": "Guten Abend. Alle Systeme sind online und bereit. Ich habe Ihren Kalender geprüft. Heute haben Sie drei Termine. Der erste beginnt um neun Uhr. Natürlich öffne ich YouTube sofort für Sie. Ihre Nachricht wurde gespeichert, und alles läuft normal.",
+    "reference_seconds": 13.6,
+    "codes": 680,
     "profile": "profile-de.npy"
   }
 }

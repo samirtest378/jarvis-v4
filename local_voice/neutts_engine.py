@@ -45,7 +45,12 @@ PROTOCOL_VERSION = 1
 SAMPLE_RATE = 24_000
 MAX_TEXT_LENGTH = 2_000
 MAX_SEGMENT_CHARACTERS = 260
-SEEDS = (7, 42)
+# Deterministic candidates scored against the selected V3 recordings. The
+# German Tuned 1 and English Old Reference profiles have different deliveries.
+LANGUAGE_SEEDS = {
+    "de": (49, 61),
+    "en": (7, 42),
+}
 _PROTOCOL_STDOUT = sys.stdout
 _QUOTE_MAP = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"'})
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+")
@@ -553,7 +558,7 @@ class _BilingualVoice:
                 use_mlock=sys.platform != "win32",
                 flash_attn=cuda,
                 offload_kqv=cuda,
-                seed=SEEDS[0],
+                seed=LANGUAGE_SEEDS[language][0],
             )
 
         try:
@@ -601,7 +606,7 @@ class _BilingualVoice:
         prompt = self._prompt(text, language)
         minimum, maximum = _duration_bounds(text)
         candidates: list[np.ndarray] = []
-        for seed in SEEDS:
+        for seed in LANGUAGE_SEEDS[language]:
             backbone.reset()
             output = backbone(
                 prompt,

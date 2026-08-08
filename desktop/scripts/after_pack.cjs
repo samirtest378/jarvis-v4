@@ -10,8 +10,8 @@ const SPEECH_MODEL_SHA256 = "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ec
 const SPEECH_RUNTIME_VERSION = "1.8.6";
 const SHARED_VOICE_HASHES = Object.freeze({
   "profile-en.npy": "276f750c643f95b2b6c6a0c82e90c9e6d0578661ab6fee240f8a128bbd57c75d",
-  "profile-de.npy": "279ff6c17daa00db4cffe872a7a8a9c70814782077f0514c51c6851469d1b22a",
-  "profiles.json": "b9a9cdbeb126920ec26dcf7b476e43d27b46871ec1cb8cccd1a4deb8d38dacfe",
+  "profile-de.npy": "03d0612714da53a5851368fa03497397bcc4ccd39b46f2cd343b7b9d4d25a191",
+  "profiles.json": "fe1fce1094e3906278e873699abdb57a7fdc4537cda9f78a1e1830ff82f6f27f",
   "models/neutts-nano-german-Q4_0.gguf": "c0a2e494d581afdac8f647f5b3c8644d6a0d793152d2f0387c860b92fcc1dd2b",
   "models/neutts-nano-Q4_0.gguf": "85466ca06aeb487e5e8d0263367166e125969e3f4b07245db009aee223702c86",
   "models/neucodec-int8.onnx": "3ddd9e56396e6029e0e948ac0255c89c803f981f23dcf4c154f50820bd74a6b3",

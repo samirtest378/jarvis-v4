@@ -184,7 +184,7 @@ test("the packaging hook verifies the copied speech runtime and pinned model", (
 test("the cross-platform package guard pins the same models and German profile", () => {
   const source = fs.readFileSync(path.join(desktopRoot, "scripts", "after_pack.cjs"), "utf8");
   assert.equal(typeof afterPack.assertBundledVoice, "function");
-  assert.match(source, /profile-de\.npy.*279ff6c17daa00db4cffe872a7a8a9c70814782077f0514c51c6851469d1b22a/s);
+  assert.match(source, /profile-de\.npy.*03d0612714da53a5851368fa03497397bcc4ccd39b46f2cd343b7b9d4d25a191/s);
   assert.match(source, /Bundled voice identity differs across platforms/);
 });
 

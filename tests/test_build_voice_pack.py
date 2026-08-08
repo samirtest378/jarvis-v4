@@ -58,7 +58,7 @@ def test_windows_voice_workflow_builds_intel_cpu_pack_and_publishes_it() -> None
     assert "onnxruntime-gpu" not in workflow
     assert "/whl/cu" not in workflow
     assert "Copy-Item assets/voice/jarvis-v3-tuned-1-de.npy" in workflow
-    assert "279ff6c17daa00db4cffe872a7a8a9c70814782077f0514c51c6851469d1b22a" in workflow
+    assert "03d0612714da53a5851368fa03497397bcc4ccd39b46f2cd343b7b9d4d25a191" in workflow
     assert "JARVIS V3 Old Reference and Tuned 1" in workflow
     assert "reference-video-crisp-v1" in workflow
     assert "--cpu-only" in workflow

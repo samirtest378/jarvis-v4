@@ -198,10 +198,15 @@ def test_production_german_profile_uses_selected_v3_tuned_1_reference() -> None:
     profile = np.load(profile_path, allow_pickle=False)
 
     assert profile.dtype == np.int32
-    assert profile.shape == (88,)
-    assert metadata["de"]["codes"] == 88
-    assert metadata["de"]["reference_seconds"] == 1.76
-    assert metadata["de"]["reference_text"] == "Ich öffne jetzt den Kalender für Sie."
+    assert profile.shape == (680,)
+    assert metadata["de"]["codes"] == 680
+    assert metadata["de"]["reference_seconds"] == 13.6
+    assert metadata["de"]["reference_text"].startswith("Guten Abend. Alle Systeme sind online")
     assert hashlib.sha256(profile_path.read_bytes()).hexdigest() == (
-        "279ff6c17daa00db4cffe872a7a8a9c70814782077f0514c51c6851469d1b22a"
+        "03d0612714da53a5851368fa03497397bcc4ccd39b46f2cd343b7b9d4d25a191"
     )
+
+
+def test_selected_profiles_use_their_scored_delivery_seeds() -> None:
+    assert neutts_engine.LANGUAGE_SEEDS["de"] == (49, 61)
+    assert neutts_engine.LANGUAGE_SEEDS["en"] == (7, 42)
