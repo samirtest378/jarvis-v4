@@ -11,14 +11,6 @@ on:
         options:
           - test
           - signed
-      target:
-        description: Build every platform or only Windows
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - windows
       publish_release:
         description: Replace the Windows installer in v4.1.1 after verification
         required: true
@@ -34,7 +26,6 @@ permissions:
 jobs:
   build:
     name: ${{ matrix.name }}
-    if: ${{ github.event_name != 'workflow_dispatch' || inputs.target == 'all' || matrix.platform == inputs.target }}
     strategy:
       fail-fast: false
       matrix:
