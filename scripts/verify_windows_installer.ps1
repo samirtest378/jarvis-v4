@@ -118,3 +118,4 @@ if (Test-Path $installRoot) { throw "Windows uninstall left the application dire
 if (Test-Path $appDataRoot) { throw "Windows uninstall left private application data behind" }
 
 Write-Host "Windows installer smoke test passed: signature=$($signature.Status), install, upgrade, backend, single instance, voice, CPU STT, uninstall"
+exit 0
