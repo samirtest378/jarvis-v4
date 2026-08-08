@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050b14" />
+    <meta name="application-name" content="JARVIS v4" />
+    <title>JARVIS v4</title>
+    <link rel="icon" href="/assets/jarvis-v3-logo.png" type="image/png" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <!-- Recordings of the real animation, one clip per state. The hardware
+         video decoder replays them for a fraction of the energy the live WebGL
+         scene needed, and they never have to freeze to stay cheap. Only the
+         active clip plays; the rest sit paused and cost nothing. The canvas
+         stays in the document for the optional live orb (Settings → classic). -->
+    <!-- data-loop-start marks where each clip's opening transition ends. The
+         clip plays from zero on a state change so the move is shown, then
+         repeats only the settled part after that. -->
+    <div id="orb-stage" aria-hidden="true">
+      <video class="orb-clip" data-state="idle" src="/assets/orb-idle.mp4"
+             autoplay loop muted playsinline disablepictureinpicture preload="auto"></video>
+      <video class="orb-clip" data-state="listening" data-loop-start="2"
+             src="/assets/orb-listening.mp4"
+             muted playsinline disablepictureinpicture preload="auto"></video>
+      <video class="orb-clip" data-state="thinking" data-loop-start="2"
+             src="/assets/orb-thinking.mp4"
+             muted playsinline disablepictureinpicture preload="auto"></video>
+      <video class="orb-clip" data-state="speaking" data-loop-start="2"
+             src="/assets/orb-speaking.mp4"
+             muted playsinline disablepictureinpicture preload="auto"></video>
+    </div>
+    <canvas id="orb-canvas" aria-hidden="true" hidden></canvas>
+
+    <header id="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <img class="brand-logo" src="/assets/jarvis-v3-logo.png" alt="" width="40" height="40" />
+        </span>
+        <div><strong>JARVIS <em>v4</em></strong><small>Personal intelligence</small></div>
+      </div>
+      <div class="header-presence">
+        <span class="privacy-badge"><span class="privacy-badge-dot"></span>Local core</span>
+        <div id="connection-status" role="status">
+          <span class="connection-dot"></span><span>Connecting…</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Minimal controls — top right -->
+    <div id="controls">
+      <button id="btn-mute" title="Enable or disable microphone" aria-label="Enable or disable microphone" aria-pressed="false">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+        </svg>
+      </button>
+      <button id="btn-menu" title="Menu" aria-label="Open menu" aria-haspopup="menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Dropdown menu -->
+    <div id="menu-dropdown" role="menu" hidden>
+      <button id="btn-settings" role="menuitem">Settings</button>
+      <button id="btn-restart" role="menuitem">Restart assistant</button>
+      <button id="btn-fix-self" role="menuitem">Open work mode</button>
+    </div>
+
+    <main id="conversation-shell">
+      <section id="messages" aria-live="polite" aria-label="Conversation">
+        <div id="empty-state">
+          <div class="empty-kicker"><span></span>JARVIS is online</div>
+          <p id="welcome-title">Good evening.</p>
+          <span class="empty-subtitle">What would you like to accomplish?</span>
+        </div>
+      </section>
+      <div class="composer-meta">
+        <div id="status-text" role="status"></div>
+        <span class="composer-security"><span></span>Private desktop session</span>
+      </div>
+      <form id="composer">
+        <span class="composer-orb" aria-hidden="true"><span></span></span>
+        <label class="sr-only" for="message-input">Message JARVIS v4</label>
+        <textarea id="message-input" rows="1" autocomplete="off" maxlength="4000" spellcheck="true" placeholder="Ask JARVIS anything…"></textarea>
+        <button id="btn-send" type="submit" aria-label="Send message" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="m4 12 16-8-6 16-2.5-6.5L4 12Z"/><path d="m11.5 13.5 4-4"/>
+          </svg>
+        </button>
+      </form>
+      <div class="composer-hint"><span><kbd>Enter</kbd> send · <kbd>Shift</kbd>+<kbd>Enter</kbd> new line</span><span>Voice ready when enabled</span></div>
+    </main>
+    <div id="error-text" role="alert"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

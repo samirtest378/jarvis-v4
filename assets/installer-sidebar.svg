@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314" viewBox="0 0 164 314">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#071628"/>
+      <stop offset="0.62" stop-color="#030a13"/>
+      <stop offset="1" stop-color="#010307"/>
+    </linearGradient>
+    <radialGradient id="core" cx="42%" cy="35%" r="70%">
+      <stop stop-color="#f4fdff"/>
+      <stop offset="0.14" stop-color="#8fe9ff"/>
+      <stop offset="0.42" stop-color="#12bce9"/>
+      <stop offset="0.76" stop-color="#075487"/>
+      <stop offset="1" stop-color="#031b35"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#e8fcff"/>
+      <stop offset="0.45" stop-color="#54d9ff"/>
+      <stop offset="1" stop-color="#0874b3"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="sphere"><circle cx="82" cy="80" r="41"/></clipPath>
+  </defs>
+  <rect width="164" height="314" fill="url(#background)"/>
+  <path d="M0 238 C50 216 108 218 164 188" fill="none" stroke="#0b79a4" stroke-opacity="0.16"/>
+  <path d="M0 255 C58 228 112 238 164 208" fill="none" stroke="#29cff8" stroke-opacity="0.08"/>
+  <circle cx="82" cy="80" r="45" fill="#16bdea" opacity="0.14" filter="url(#glow)"/>
+  <circle cx="82" cy="80" r="41" fill="url(#core)" stroke="#4ad6ff" stroke-opacity="0.65"/>
+  <g clip-path="url(#sphere)" fill="none" stroke-linecap="round">
+    <ellipse cx="82" cy="80" rx="24" ry="41" stroke="url(#ring)" stroke-width="1.5"/>
+    <ellipse cx="82" cy="80" rx="36" ry="41" stroke="#45d2fb" stroke-opacity="0.3"/>
+  </g>
+  <ellipse cx="82" cy="83" rx="57" ry="17" fill="none" stroke="url(#ring)" stroke-width="2" filter="url(#glow)"/>
+  <circle cx="82" cy="39" r="2" fill="#f4fdff" filter="url(#glow)"/>
+  <circle cx="58" cy="83" r="1.8" fill="#f4fdff" filter="url(#glow)"/>
+  <circle cx="82" cy="121" r="2" fill="#f4fdff" filter="url(#glow)"/>
+  <text x="82" y="160" fill="#e8f8ff" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600" letter-spacing="4" text-anchor="middle">JARVIS</text>
+  <text x="82" y="181" fill="#55d7fa" font-family="Segoe UI, Arial, sans-serif" font-size="10" letter-spacing="4" text-anchor="middle">VERSION 4</text>
+  <line x1="46" y1="199" x2="118" y2="199" stroke="#37c8ef" stroke-opacity="0.42"/>
+  <text x="82" y="287" fill="#5d8396" font-family="Segoe UI, Arial, sans-serif" font-size="7" letter-spacing="1.4" text-anchor="middle">PERSONAL INTELLIGENCE</text>
+</svg>

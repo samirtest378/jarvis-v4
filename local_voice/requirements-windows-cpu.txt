@@ -1,0 +1,7 @@
+# Windows x64 runtime for Intel and other CPU-only JARVIS installations.
+# No NVIDIA libraries are included in this pack.
+numpy==2.4.6
+onnxruntime==1.23.2
+pyinstaller==6.21.0
+llama-cpp-python==0.3.4
+espeakng-loader==0.2.4

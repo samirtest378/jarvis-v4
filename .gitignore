@@ -1,0 +1,62 @@
+# Environment
+.env
+.env.local
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Data (user-specific, generated at runtime)
+*.db
+data/*.jsonl
+data/active_session.json
+data/.jarvis_output.txt
+
+# Certificates
+*.pem
+
+# Build
+dist/
+.vite/
+frontend/.vite/
+frontend/dist/
+desktop/dist-backend/
+desktop/legal-dist/
+release/
+release-candidate-*/
+/build/
+work/
+
+# These two source-controlled signing entitlement files happen to live in a
+# directory called build; they are inputs, not generated build output.
+desktop/build/*
+!desktop/build/entitlements.mac.plist
+!desktop/build/entitlements.mac.inherit.plist
+
+# IDE / System
+.DS_Store
+.vscode/
+.idea/
+.claude/
+.arch/
+
+# Desktop overlay
+desktop-overlay/node_modules/
+desktop/node_modules/
+context/
+*.db-shm
+*.db-wal
+# Generated offline speech runtime (rebuilt from pinned, checksummed sources)
+desktop/speech-runtime/*
+!desktop/speech-runtime/.gitkeep
+
+# Voice source material confirmed by its rights holder. Packaged runtimes stay
+# out of Git and are published separately as release assets.
+*.jarvisvoice

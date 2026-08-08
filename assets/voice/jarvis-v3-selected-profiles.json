@@ -1,0 +1,14 @@
+{
+  "en": {
+    "reference_text": "Good evening, sir. All systems are online and standing by. I have checked your calendar. There are three appointments today. The weather is clear, and your first meeting begins at nine. Certainly. I will open that for you right away. Your message has been noted, and everything is running normally.",
+    "reference_seconds": 16.08,
+    "codes": 804,
+    "profile": "profile-en.npy"
+  },
+  "de": {
+    "reference_text": "Ich öffne jetzt den Kalender für Sie.",
+    "reference_seconds": 1.76,
+    "codes": 88,
+    "profile": "profile-de.npy"
+  }
+}

@@ -1,0 +1,174 @@
+{
+  "name": "jarvis-v4-desktop",
+  "desktopName": "jarvis-v4-desktop.desktop",
+  "version": "4.1.1",
+  "private": true,
+  "description": "Secure cross-platform desktop shell for JARVIS v4",
+  "author": "JARVIS contributors",
+  "homepage": "https://github.com/Samirprogramm/jarvis-v4",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Samirprogramm/jarvis-v4.git"
+  },
+  "main": "main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"npm --prefix ../frontend run dev -- --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env JARVIS_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "test": "node --test tests/*.test.cjs",
+    "build:speech": "node scripts/run_speech_build.cjs",
+    "build:frontend": "npm --prefix ../frontend run build",
+    "build:backend": "node scripts/run_backend_build.cjs",
+    "build": "npm run build:speech && npm run build:frontend && npm run build:backend && electron-builder",
+    "build:dir": "npm run build:speech && npm run build:frontend && npm run build:backend && electron-builder --dir"
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.0.12",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "ai.jarvis.v4",
+    "productName": "JARVIS v4",
+    "artifactName": "JARVIS-v4-${version}-${arch}.${ext}",
+    "afterPack": "scripts/after_pack.cjs",
+    "icon": "../assets/icon.png",
+    "asar": true,
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "diagnostics.cjs",
+      "secret_config.cjs",
+      "single_instance.cjs",
+      "voice_pack_limits.cjs",
+      "google_oauth.cjs",
+      "microsoft_oauth.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "speech-runtime",
+        "to": "speech-runtime",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "bundled-voice-pack",
+        "to": "voice-pack",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "legal-dist",
+        "to": "legal",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../assets/icon.png",
+        "to": "app-icon.png"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "minimumSystemVersion": "14.0",
+      "hardenedRuntime": true,
+      "notarize": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "JARVIS v4 uses the microphone only when you enable voice input.",
+        "NSAppleEventsUsageDescription": "JARVIS v4 accesses Calendar, Mail, Notes, and approved apps only when you request those features.",
+        "NSScreenCaptureUsageDescription": "JARVIS v4 captures the screen only when you explicitly ask it to understand what is visible.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "win": {
+      "icon": "../assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "de_DE",
+        "en_US"
+      ],
+      "installerIcon": "../assets/icon.ico",
+      "uninstallerIcon": "../assets/icon.ico",
+      "installerHeaderIcon": "../assets/icon.ico",
+      "installerSidebar": "../assets/installer-sidebar.bmp",
+      "uninstallerSidebar": "../assets/installer-sidebar.bmp",
+      "perMachine": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": true,
+      "runAfterFinish": true,
+      "shortcutName": "JARVIS v4",
+      "uninstallDisplayName": "JARVIS v4"
+    },
+    "linux": {
+      "icon": "../assets/icon.png",
+      "syncDesktopName": true,
+      "category": "Utility",
+      "maintainer": "JARVIS contributors",
+      "synopsis": "Private German and English AI desktop assistant",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "deb": {
+      "depends": [
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "espeak-ng"
+      ]
+    }
+  }
+}

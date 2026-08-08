@@ -1,0 +1,109 @@
+name: Build Windows CPU voice
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-voice:
+    name: Windows x64 · Intel CPU
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VOICE_VERSION: 4.1.1
+      BASE_VOICE_TAG: v4.1.0
+      TARGET_RELEASE_TAG: v4.1.1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: local_voice/requirements-windows-cpu.txt
+
+      - name: Install Intel CPU voice runtime
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r local_voice/requirements-windows-cpu.txt
+
+      - name: Download the matched German and English profiles
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/windows-voice | Out-Null
+          gh release download $env:BASE_VOICE_TAG --repo $env:GITHUB_REPOSITORY --pattern "JARVIS-v4-Smooth-Bilingual-Voice-4.1.0-darwin-arm64.jarvisvoice" --dir build/windows-voice
+          Copy-Item build/windows-voice/*.jarvisvoice build/windows-voice/base.zip
+          Expand-Archive build/windows-voice/base.zip build/windows-voice/base
+          $pack = Get-ChildItem build/windows-voice/base -Directory | Select-Object -First 1
+          if (-not $pack) { throw "The base voice pack could not be extracted" }
+          "VOICE_BASE=$($pack.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Prepare Windows pronunciation runtime
+        shell: pwsh
+        run: |
+          $paths = python -c "import espeakng_loader,json; print(json.dumps({'library':str(espeakng_loader.get_library_path()),'data':str(espeakng_loader.get_data_path())}))" | ConvertFrom-Json
+          if (-not (Test-Path $paths.library)) { throw "eSpeak NG DLL is missing" }
+          if (-not (Test-Path $paths.data)) { throw "eSpeak NG pronunciation data is missing" }
+          Remove-Item "$env:VOICE_BASE/models/espeak" -Recurse -Force
+          New-Item -ItemType Directory -Force "$env:VOICE_BASE/models/espeak" | Out-Null
+          Copy-Item $paths.data "$env:VOICE_BASE/models/espeak/espeak-ng-data" -Recurse
+          Copy-Item $paths.library "$env:VOICE_BASE/models/espeak/espeak-ng.dll"
+
+      - name: Apply the selected V3 old-reference and Tuned 1 voice
+        shell: pwsh
+        run: |
+          Copy-Item assets/voice/jarvis-v3-old-reference-en.npy "$env:VOICE_BASE/profile-en.npy" -Force
+          Copy-Item assets/voice/jarvis-v3-tuned-1-de.npy "$env:VOICE_BASE/profile-de.npy" -Force
+          Copy-Item assets/voice/jarvis-v3-selected-profiles.json "$env:VOICE_BASE/profiles.json" -Force
+          $germanHash = (Get-FileHash "$env:VOICE_BASE/profile-de.npy" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($germanHash -ne "279ff6c17daa00db4cffe872a7a8a9c70814782077f0514c51c6851469d1b22a") {
+            throw "The selected V3 Tuned 1 German profile is missing or changed"
+          }
+
+      - name: Build Windows x64 voice pack
+        shell: pwsh
+        run: |
+          python scripts/build_voice_pack.py `
+            --python (Get-Command python).Source `
+            --mode neutts-nano `
+            --version $env:VOICE_VERSION `
+            --model-dir "$env:VOICE_BASE/models" `
+            --profile "$env:VOICE_BASE/profile-en.npy" `
+            --profile-de "$env:VOICE_BASE/profile-de.npy" `
+            --profile-metadata "$env:VOICE_BASE/profiles.json" `
+            --profile-source "JARVIS V3 old English reference plus Tuned 1 German profile" `
+            --voice-identity "JARVIS V3 Old Reference and Tuned 1" `
+            --cpu-only `
+            --output-dir release
+
+      - name: Verify Windows manifest and engine
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem release/*win32-x64.jarvisvoice | Select-Object -First 1
+          if (-not $archive) { throw "Windows voice archive was not created" }
+          Copy-Item $archive.FullName build/windows-voice/result.zip
+          Expand-Archive build/windows-voice/result.zip build/windows-voice/result
+          $root = Get-ChildItem build/windows-voice/result -Directory | Select-Object -First 1
+          $manifest = Get-Content "$($root.FullName)/voice-pack.json" | ConvertFrom-Json
+          if ($manifest.platform -ne "win32" -or $manifest.arch -ne "x64") { throw "Wrong voice platform" }
+          if (-not (Test-Path "$($root.FullName)/bin/jarvis-voice-engine.exe")) { throw "Windows engine is missing" }
+          if (-not (Test-Path "$($root.FullName)/models/espeak/espeak-ng.dll")) { throw "Windows eSpeak runtime is missing" }
+          if (@($manifest.languages) -notcontains "de" -or @($manifest.languages) -notcontains "en") { throw "Bilingual profiles are missing" }
+          if ($manifest.mastering -ne "reference-video-crisp-v1") { throw "Crisp cross-platform mastering is missing" }
+          $accelerators = @($manifest.accelerators)
+          if ($accelerators.Count -ne 1 -or $accelerators[0] -ne "cpu") { throw "This Windows voice pack must use CPU only" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-v4-windows-intel-cpu-voice
+          path: release/*win32-x64.jarvisvoice
+          compression-level: 0
+
+      - name: Publish in the existing JARVIS v4 release
+        shell: pwsh
+        run: gh release upload $env:TARGET_RELEASE_TAG release/*win32-x64.jarvisvoice --repo $env:GITHUB_REPOSITORY --clobber

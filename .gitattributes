@@ -1,0 +1,4 @@
+# Voice identity files must stay byte-identical on Windows. In particular,
+# Git must not rewrite the JSON profile metadata from LF to CRLF because its
+# checksum is intentionally matched across the macOS and Windows voice packs.
+assets/voice/jarvis-v3-selected-profiles.json -text

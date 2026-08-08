@@ -1,0 +1,114 @@
+name: Build cross-platform JARVIS voice
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  voice:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS Apple Silicon voice
+            os: macos-15
+            platform: darwin
+            arch: arm64
+            artifact: macos-arm64
+            macos_deployment_target: "14.0"
+            cmake_args: "-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0"
+          - name: macOS Intel voice
+            os: macos-15-intel
+            platform: darwin
+            arch: x64
+            artifact: macos-x64
+            macos_deployment_target: "14.0"
+            cmake_args: "-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0"
+          - name: Linux x64 voice
+            os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            artifact: linux-x64
+            macos_deployment_target: ""
+            cmake_args: ""
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VOICE_VERSION: 4.1.1
+      BASE_VOICE_TAG: v4.1.0
+      TARGET_RELEASE_TAG: v4.1.1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install efficient native voice runtime
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
+          CMAKE_ARGS: ${{ matrix.cmake_args }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==2.4.6 onnxruntime==1.23.2 pyinstaller==6.21.0 llama-cpp-python==0.3.4 espeakng-loader==0.2.4
+
+      - name: Verify and prepare shared model weights
+        shell: bash
+        run: |
+          mkdir -p build/cross-platform-voice
+          gh release download "$BASE_VOICE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "JARVIS-v4-Smooth-Bilingual-Voice-4.1.0-darwin-arm64.jarvisvoice" \
+            --dir build/cross-platform-voice
+          archive="$(find build/cross-platform-voice -maxdepth 1 -name '*.jarvisvoice' -print -quit)"
+          test -n "$archive"
+          python scripts/prepare_cross_platform_voice.py \
+            --archive "$archive" \
+            --output build/cross-platform-voice/models \
+            --platform "${{ matrix.platform }}"
+
+      - name: Build native selected V3 German and English voice
+        shell: bash
+        run: |
+          python scripts/build_voice_pack.py \
+            --python "$(command -v python)" \
+            --mode neutts-nano \
+            --version "$VOICE_VERSION" \
+            --model-dir build/cross-platform-voice/models \
+            --profile assets/voice/jarvis-v3-old-reference-en.npy \
+            --profile-de assets/voice/jarvis-v3-tuned-1-de.npy \
+            --profile-metadata assets/voice/jarvis-v3-selected-profiles.json \
+            --profile-source "JARVIS V3 old English reference plus Tuned 1 German profile" \
+            --voice-identity "JARVIS V3 Old Reference and Tuned 1" \
+            --output-dir release
+
+      - name: Verify native archive, identity and mastering
+        shell: bash
+        run: |
+          archive="$(find release -maxdepth 1 -name '*-${{ matrix.platform }}-${{ matrix.arch }}.jarvisvoice' -print -quit)"
+          test -n "$archive"
+          python scripts/stage_bundled_voice_pack.py \
+            --archive "$archive" \
+            --output build/verified-voice \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}"
+          if [[ "${{ matrix.platform }}" == "darwin" ]]; then
+            python scripts/verify_macos_native_compatibility.py \
+              --pack-dir build/verified-voice \
+              --maximum 14.0
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-v4-${{ matrix.artifact }}-voice
+          path: release/*-${{ matrix.platform }}-${{ matrix.arch }}.jarvisvoice
+          compression-level: 0
+
+      - name: Publish native voice in JARVIS v4 release
+        shell: bash
+        run: gh release upload "$TARGET_RELEASE_TAG" release/*-${{ matrix.platform }}-${{ matrix.arch }}.jarvisvoice --repo "$GITHUB_REPOSITORY" --clobber
