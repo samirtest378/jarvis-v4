@@ -198,10 +198,14 @@ class _OpenAIMessages:
         if self.owner.provider == "kimi" and model.startswith(("kimi-k2.5", "kimi-k2.6")):
             payload["thinking"] = {"type": "disabled"}
         if self.owner.provider == "kimi" and model.startswith("kimi-k3"):
-            # The normal preset reserves K3 for explicit quality-first research.
+            # K3 is reserved for explicit quality-first research.
             payload["reasoning_effort"] = "max"
         if self.owner.provider == "qwen" and model.startswith("qwen3.7-"):
             payload["enable_thinking"] = model.startswith("qwen3.7-max")
+        if self.owner.provider == "grok" and model.startswith("grok-4.3"):
+            # xAI documents a no-reasoning mode for its current low-latency,
+            # low-cost conversational route.
+            payload["reasoning_effort"] = "none"
         if (
             self.owner.provider == "openai"
             and model.startswith("gpt-5.6-")
@@ -228,12 +232,6 @@ class _OpenAIMessages:
         # Repeated measurements against the configured production account
         # showed the provider's default path answering in 0.65–0.87 s, versus
         # 1.02–1.96 s with those hints. Nano already optimizes this workload.
-        if self.owner.provider == "ollama" and model.startswith("qwen3.5"):
-            # Qwen 3.5 can spend the whole short voice-response budget on a
-            # hidden reasoning trace. Ollama's OpenAI-compatible endpoint
-            # supports disabling that work for low-latency conversational use.
-            payload["reasoning_effort"] = "none"
-
         headers = {"Content-Type": "application/json"}
         if self.owner.api_key:
             headers["Authorization"] = f"Bearer {self.owner.api_key}"
@@ -336,6 +334,6 @@ def create_llm_client(*, provider: str, api_key: str, base_url: str) -> Any:
         # stalls.  The SDK default can leave the UI waiting for several
         # minutes, which feels like a frozen application.
         return anthropic.AsyncAnthropic(api_key=api_key, timeout=60.0, max_retries=1)
-    if provider in {"openai", "kimi", "qwen", "gemini", "grok"} and not api_key:
+    if provider in {"openai", "kimi", "qwen", "gemini", "grok", "custom"} and not api_key:
         return None
     return OpenAICompatibleClient(provider=provider, api_key=api_key, base_url=base_url)

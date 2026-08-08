@@ -1178,10 +1178,11 @@ body::after {
   position: sticky;
   top: 80px;
   z-index: 7;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 6px;
   padding: 11px 18px;
-  overflow-x: auto;
+  overflow: hidden;
   border-bottom: 1px solid rgba(103, 213, 255, 0.08);
   background: rgba(4, 10, 17, 0.92);
   backdrop-filter: blur(24px);
@@ -1190,9 +1191,13 @@ body::after {
 }
 .settings-nav::-webkit-scrollbar { display: none; }
 .settings-nav-button {
-  flex: 1 0 auto;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 34px;
-  padding: 0 13px;
+  padding: 0 7px;
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
@@ -1202,6 +1207,18 @@ body::after {
   letter-spacing: 0.04em;
   cursor: pointer;
 }
+.settings-nav-icon {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .72;
+}
+.settings-nav-button.active .settings-nav-icon { opacity: 1; filter: drop-shadow(0 0 6px rgba(103, 213, 255, .35)); }
 .settings-nav-button:hover { color: rgba(205, 239, 251, 0.72); background: rgba(103, 213, 255, 0.045); }
 .settings-nav-button.active {
   border-color: rgba(103, 213, 255, 0.22);
@@ -1303,24 +1320,6 @@ body::after {
 .settings-subheading { margin: 0 0 9px; color: rgba(186, 229, 246, 0.4); font-size: 8px; font-weight: 650; letter-spacing: 0.16em; text-transform: uppercase; }
 .voice-health-card,
 .voice-pack-card { border-color: rgba(103, 213, 255, 0.12); border-radius: 13px; background: rgba(56, 189, 248, 0.04); }
-.local-model-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 16px;
-  padding: 12px;
-  border: 1px solid rgba(52, 211, 153, 0.13);
-  border-radius: 13px;
-  background: linear-gradient(145deg, rgba(3, 22, 23, 0.58), rgba(5, 17, 27, 0.5));
-}
-.local-model-card[hidden] { display: none; }
-.local-model-card strong { display: block; color: rgba(197, 241, 226, 0.76); font-size: 10px; font-weight: 580; }
-.local-model-card p { margin-top: 4px; color: rgba(185, 218, 210, 0.38); font-size: 9px; line-height: 1.45; }
-.local-model-card > a { grid-column: 2; color: rgba(125, 211, 252, 0.66); font-size: 9px; text-decoration: none; }
-.local-model-card > a:hover { color: rgba(186, 230, 253, 0.9); }
-.local-model-buttons { display: flex; flex-direction: column; gap: 7px; }
-.local-model-buttons .settings-btn { white-space: nowrap; }
 .google-account-card {
   margin: 0 0 17px;
   padding: 14px;
@@ -1348,6 +1347,11 @@ body::after {
 .connection-row-action:focus-visible { outline: 2px solid rgba(56, 189, 248, 0.72); outline-offset: 2px; }
 .connection-logo-brand { overflow: hidden; padding: 7px; background: rgba(255, 255, 255, 0.94); }
 .connection-logo-brand svg { display: block; width: 100%; height: 100%; }
+.connection-logo-brand[data-logo="outlook"],
+.connection-logo-brand[data-logo="calendar"],
+.connection-logo-brand[data-logo="files"],
+.connection-logo-brand[data-logo="mic"],
+.connection-logo-brand[data-logo="spotify"] { border-color: rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.95); }
 .google-connections-heading { margin-top: 23px; }
 .google-connections-help { margin: -2px 0 11px; }
 .google-service-list { margin-bottom: 11px; }
@@ -1474,15 +1478,15 @@ body::after {
   .wake-test-card { grid-template-columns: auto 1fr; }
   .wake-test-card .settings-btn { grid-column: 1 / -1; width: 100%; }
   .voice-command-grid { grid-template-columns: 1fr; }
-  .local-model-card { grid-template-columns: auto 1fr; }
-  .local-model-buttons { grid-column: 1 / -1; }
-  .local-model-card .settings-btn { width: 100%; }
   .ticket-input-grid { grid-template-columns: 1fr; }
   .ticket-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .composer-meta, .composer-hint { justify-content: flex-start; }
   .settings-panel { width: 100%; }
   .settings-body { padding-inline: 12px; }
   .settings-section { padding: 17px; }
+  .settings-nav { gap: 3px; padding-inline: 8px; }
+  .settings-nav-button { gap: 4px; padding-inline: 4px; font-size: 8px; }
+  .settings-nav-icon { width: 12px; height: 12px; flex-basis: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

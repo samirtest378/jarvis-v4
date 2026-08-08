@@ -100,6 +100,29 @@ test("Google services use branded icons and start consent from the whole row", (
   assert.doesNotMatch(source, /<summary>Connect Google directly/);
 });
 
+test("settings use simple icon tabs and recognizable service icons", () => {
+  assert.equal((source.match(/class="settings-nav-icon"/g) || []).length, 6);
+  assert.match(style, /\.settings-nav\s*\{[\s\S]*grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+  for (const icon of ["OUTLOOK", "WINDOWS_CALENDAR", "FOLDER", "MICROPHONE", "SPOTIFY"]) {
+    assert.match(source, new RegExp("const " + icon + "_ICON = `<svg"));
+  }
+  for (const logo of ["outlook", "calendar", "files", "mic", "spotify", "gmail", "gcal"]) {
+    assert.match(source, new RegExp(`data-logo="${logo}"`));
+  }
+  assert.match(style, /\.connection-logo-brand svg/);
+});
+
+test("the initial OpenAI selection shows the matching key field", () => {
+  assert.match(source, /data-provider-key="openai">\s*<label>OpenAI API Key/);
+  assert.match(source, /data-provider-key="anthropic" hidden>\s*<label>Anthropic API Key/);
+});
+
+test("Windows intelligence stays cloud-only and defaults to GPT-5.4 Nano", () => {
+  assert.match(source, /<option value="openai">OpenAI \/ ChatGPT API<\/option>/);
+  assert.match(source, /model: "gpt-5\.4-nano"/);
+  assert.doesNotMatch(source, /value="ollama"|Local AI · Ollama|btn-install-local-model/);
+});
+
 test("ticket dashboard is visibly read-only and keeps summaries local", () => {
   assert.match(source, /data-settings-target="section-tickets"/);
   assert.match(source, /\/api\/ticket-dashboard\/analyze/);

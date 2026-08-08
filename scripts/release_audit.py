@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
+EXPECTED_SCOPE = "JARVIS v4.1.2 Windows x64 commercial release"
 CONFIRMATION_FILES = {
     "commercial upstream license": "COMMERCIAL_LICENSE_CONFIRMATION.md",
     "JARVIS brand/trademark clearance": "BRAND_CLEARANCE_CONFIRMATION.md",
@@ -17,6 +18,22 @@ CONFIRMATION_FILES = {
     "privacy, customer terms, and seller contact legal review": "PRIVACY_LEGAL_CONFIRMATION.md",
     "Windows Authenticode signing": "WINDOWS_SIGNING_CONFIRMATION.md",
     "clean-machine release QA": "RELEASE_QA_CONFIRMATION.md",
+}
+CONFIRMATION_MARKERS = {
+    "COMMERCIAL_LICENSE_CONFIRMATION.md": ("COMMERCIAL USE PERMITTED: YES",),
+    "BRAND_CLEARANCE_CONFIRMATION.md": ("BRAND USE CLEARED: YES",),
+    "VOICE_RIGHTS_CONFIRMATION.md": ("COMMERCIAL VOICE USE PERMITTED: YES",),
+    "PRIVACY_LEGAL_CONFIRMATION.md": ("SELLER IDENTITY VERIFIED: YES",),
+    "WINDOWS_SIGNING_CONFIRMATION.md": ("AUTHENTICODE STATUS: VALID",),
+    "RELEASE_QA_CONFIRMATION.md": (
+        "WINDOWS 10: PASS",
+        "WINDOWS 11: PASS",
+        "INSTALL: PASS",
+        "UPGRADE: PASS",
+        "GERMAN MICROPHONE: PASS",
+        "ENGLISH MICROPHONE: PASS",
+        "UNINSTALL: PASS",
+    ),
 }
 SECRET_PATTERNS = {
     "Anthropic key": re.compile(r"sk-ant-(?:api\d+-)?[A-Za-z0-9_-]{24,}"),
@@ -55,6 +72,25 @@ def human_release_blockers(root: Path = ROOT) -> list[str]:
         path = root / "docs" / filename
         if not path.is_file():
             blockers.append(f"missing verified {label} confirmation ({filename})")
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        normalized = text.upper()
+        universal_fields = (
+            re.search(r"(?mi)^STATUS:\s*APPROVED\s*$", text),
+            re.search(r"(?mi)^REVIEWED BY:\s*\S.+$", text),
+            re.search(r"(?mi)^REVIEW DATE:\s*\d{4}-\d{2}-\d{2}\s*$", text),
+            re.search(rf"(?mi)^SCOPE:\s*{re.escape(EXPECTED_SCOPE)}\s*$", text),
+        )
+        missing_markers = [
+            marker for marker in CONFIRMATION_MARKERS[filename]
+            if marker not in normalized
+        ]
+        artifact_bound = filename not in {
+            "WINDOWS_SIGNING_CONFIRMATION.md",
+            "RELEASE_QA_CONFIRMATION.md",
+        } or re.search(r"(?mi)^ARTIFACT SHA-256:\s*[A-F0-9]{64}\s*$", text)
+        if not all(universal_fields) or missing_markers or not artifact_bound:
+            blockers.append(f"incomplete verified {label} confirmation ({filename})")
 
     privacy_path = root / "docs" / "PRIVACY.md"
     if privacy_path.is_file():

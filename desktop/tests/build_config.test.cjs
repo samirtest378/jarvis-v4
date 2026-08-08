@@ -227,19 +227,51 @@ test("unpacked build apps are excluded from Spotlight app discovery", (t) => {
 });
 
 test("release automation is Windows-only and cannot publish an unsigned sale build", () => {
-  const workflow = fs.readFileSync(path.resolve(desktopRoot, "..", ".github", "workflows", "build-installers.yml"), "utf8");
-  assert.match(workflow, /windows-2025/);
-  assert.doesNotMatch(workflow, /macos-15|ubuntu-24\.04/);
+  const projectRoot = path.resolve(desktopRoot, "..");
+  const workflow = fs.readFileSync(path.join(projectRoot, ".github", "workflows", "build-installers.yml"), "utf8");
+  const publisher = fs.readFileSync(path.join(projectRoot, ".github", "workflows", "publish-installers.yml"), "utf8");
+  const smoke = fs.readFileSync(path.join(projectRoot, "scripts", "verify_windows_installer.ps1"), "utf8");
+
+  for (const releaseWorkflow of [workflow, publisher]) {
+    assert.match(releaseWorkflow, /windows-2025/);
+    assert.doesNotMatch(releaseWorkflow, /macos-15|ubuntu-24\.04|AppImage|\.deb/);
+    assert.match(releaseWorkflow, /jarvis-v4-windows-x64/);
+    assert.doesNotMatch(releaseWorkflow, /JARVIS-v3|jarvis-v3|JARVIS v3/);
+  }
   assert.match(workflow, /name: Windows x64 sale installer/);
   assert.match(workflow, /compression-level: 0/);
   assert.match(workflow, /npm --prefix desktop run build:speech/);
   assert.match(workflow, /npm --prefix desktop run build -- --win/);
   assert.match(workflow, /--publish never/);
   assert.match(workflow, /Build signed installer[\s\S]*CSC_LINK: \$\{\{ secrets\.WIN_CSC_LINK \}\}/);
-  assert.match(workflow, /Publish verified Windows installer[\s\S]*inputs\.release_mode == 'signed'/);
+  assert.match(workflow, /Clean-install and launch the Windows app[\s\S]*verify_windows_installer\.ps1/);
+  assert.doesNotMatch(workflow, /gh release upload|gh release create/);
   assert.match(workflow, /Build JARVIS v4 installers/);
-  assert.match(workflow, /jarvis-v4-windows-x64/);
-  assert.doesNotMatch(workflow, /JARVIS-v3|jarvis-v3|JARVIS v3/);
+
+  assert.match(publisher, /Get-AuthenticodeSignature/);
+  assert.match(publisher, /actions\/setup-python@v5/);
+  assert.match(publisher, /Require commercial release evidence[\s\S]*release:audit:strict/);
+  assert.match(publisher, /signature\.Status -ne "Valid"/);
+  assert.match(publisher, /Bind evidence to the exact installer[\s\S]*Get-FileHash/);
+  assert.match(publisher, /WINDOWS_SIGNING_CONFIRMATION\.md/);
+  assert.match(publisher, /RELEASE_QA_CONFIRMATION\.md/);
+  assert.match(publisher, /Verify the source workflow run[\s\S]*run\.conclusion -ne "success"/);
+  assert.match(publisher, /gh release create/);
+  assert.match(publisher, /RELEASE_NOTES_4\.1\.2\.md/);
+  assert.match(publisher, /verify_windows_installer\.ps1 -InstallerPath \$installer -RequireSignature/);
+  assert.match(publisher, /actions\/checkout@v4/);
+
+  assert.match(smoke, /ggml-large-v3-turbo-q8_0\.bin/);
+  assert.match(smoke, /ggml-silero-v6\.2\.0\.bin/);
+  assert.match(smoke, /exceeds GitHub's 2 GiB release-asset limit/);
+  assert.match(smoke, /accelerators\)\.Count -ne 1/);
+  assert.match(smoke, /languages\) -contains "de"/);
+  assert.match(smoke, /languages\) -contains "en"/);
+  assert.match(smoke, /api\/health/);
+  assert.match(smoke, /Silent in-place upgrade failed/);
+  assert.match(smoke, /In-place upgrade removed private customer data/);
+  assert.match(smoke, /second\.WaitForExit\(15000\)/);
+  assert.match(smoke, /Windows uninstall left private application data behind/);
 });
 
 test("release automation installs the hash-locked Python build", () => {
@@ -247,8 +279,15 @@ test("release automation installs the hash-locked Python build", () => {
   const workflow = fs.readFileSync(path.join(projectRoot, ".github", "workflows", "build-installers.yml"), "utf8");
   const lockfile = fs.readFileSync(path.join(projectRoot, "requirements-build.lock.txt"), "utf8");
   const backendLauncher = fs.readFileSync(path.join(desktopRoot, "scripts", "run_backend_build.cjs"), "utf8");
+  const rootManifest = JSON.parse(fs.readFileSync(path.join(projectRoot, "package.json"), "utf8"));
+  const pythonLauncher = fs.readFileSync(path.join(projectRoot, "scripts", "run_python.cjs"), "utf8");
   assert.match(workflow, /--require-hashes -r requirements-build\.lock\.txt/);
   assert.match(lockfile, /--hash=sha256:/);
   assert.match(lockfile, /pyinstaller==/);
   assert.match(backendLauncher, /import sys, PyInstaller/);
+  assert.match(rootManifest.scripts["release:audit"], /^node scripts\/run_python\.cjs /);
+  assert.match(rootManifest.scripts["release:checksums"], /^node scripts\/run_python\.cjs /);
+  assert.match(pythonLauncher, /process\.platform === "win32"/);
+  assert.match(pythonLauncher, /\["py", \["-3\.11"\]\]/);
+  assert.match(pythonLauncher, /sys\.version_info >= \(3, 11\)/);
 });

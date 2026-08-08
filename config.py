@@ -45,7 +45,6 @@ def load_env_file() -> None:
 load_env_file()
 
 SUPPORTED_LLM_PROVIDERS = (
-    "ollama",
     "openai",
     "anthropic",
     "kimi",
@@ -115,9 +114,9 @@ PROVIDER_DEFAULTS = {
         "key_env": "XAI_API_KEY",
     },
     "custom": {
-        "base_url": "http://127.0.0.1:1234/v1",
-        "model": "local-model",
-        "research_model": "local-model",
+        "base_url": "https://provider.example/v1",
+        "model": "provider-model",
+        "research_model": "provider-model",
         "key_env": "OPENAI_COMPATIBLE_API_KEY",
     },
 }

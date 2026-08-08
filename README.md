@@ -6,7 +6,7 @@ NeuTTS Nano, llama.cpp, and ONNX Runtime. V3 can remain archived as a separate
 backup without appearing as an installed application.
 
 JARVIS v4 is a voice- and text-first personal AI assistant packaged as a real
-cross-platform Electron desktop application. It keeps the original FastAPI
+Windows desktop application. It keeps the original FastAPI
 automation, memory, planning, macOS integrations, and reactive Three.js orb,
 while adding a complete conversation UI, secure settings, multiple language
 model providers, and an optional fully local reference-derived voice.
@@ -15,24 +15,20 @@ The desktop application owns the app ID `ai.jarvis.v4` and its own user-data
 directory. It can therefore coexist with a different JARVIS installation
 without sharing its settings, keys, databases, or voice pack.
 
-Mac users who only want to install and use the app can follow
-[`QUICKSTART-MAC.md`](QUICKSTART-MAC.md); no development setup is required.
 Windows users can follow [`QUICKSTART-WINDOWS.md`](QUICKSTART-WINDOWS.md).
-Linux users can follow [`QUICKSTART-LINUX.md`](QUICKSTART-LINUX.md).
 
 ## What is included
 
-- Standalone macOS, Windows, and Linux desktop shell
+- Standalone Windows x64 desktop app with an assisted installer
 - Anthropic Claude, Kimi/Moonshot, Qwen/DashScope, Google Gemini, xAI Grok,
-  keyless local Ollama, and custom
-  OpenAI-compatible language-model connections
+  OpenAI, and custom OpenAI-compatible cloud connections
 - Selectable secret storage: OS-encrypted Electron `safeStorage` (macOS
   Keychain, Windows DPAPI, or a supported Linux secret store), or a
   password-free private local file
 - Environment variables for managed deployments and development
-- Text chat, visible conversation history, cloud speech input with the bundled
-  multilingual whisper.cpp engine as an offline fallback, a local “Hey JARVIS”
-  wake phrase, and multiple speech-output fallbacks
+- Text chat, visible conversation history, CPU-only local speech input with a
+  bundled multilingual whisper.cpp engine, a local “Hey JARVIS” wake phrase,
+  and optional cloud speech fallbacks
 - Compact bilingual NeuTTS voice bundled with integrity validation and the same
   German/English JARVIS profiles and mastering on macOS, Windows, and Linux;
   legacy packs remain supported
@@ -61,9 +57,8 @@ For development:
 - Python 3.11 or newer
 - Node.js 20 or newer
 - CMake for release builds (the pinned offline speech engine is compiled per OS)
-- Ollama for keyless local AI, a key for any supported cloud provider, or a
-  reachable custom OpenAI-compatible endpoint
-- macOS 14+, Windows 10+, or a modern Linux distribution
+- An API key for OpenAI or another supported cloud provider
+- Windows 10 or Windows 11 x64
 
 Fish Audio, Claude Code, and Playwright are optional. The release installers
 already contain the native offline JARVIS voice pack. Apple Calendar/Mail/Notes automation remains macOS-specific; Windows
@@ -94,7 +89,7 @@ and [Calendar scope rules](https://developers.google.com/workspace/calendar/api/
 ## Development setup
 
 ```bash
-git clone https://github.com/NotKhoa03/jarvis-secure.git jarvis-v4
+git clone https://github.com/samirtest378/jarvis-v4.git
 cd jarvis-v4
 
 python3.11 -m venv .venv
@@ -120,7 +115,6 @@ Keychain option remains recommended when its password is available.
 
 | Provider | Default base URL | Default chat model | Key variable |
 | --- | --- | --- | --- |
-| Local AI · Ollama | `http://127.0.0.1:11434/v1` | `qwen3.5:9b` | none |
 | OpenAI | `https://api.openai.com/v1` | `gpt-5.4-nano` | `OPENAI_API_KEY` |
 | Anthropic | native Messages API | `claude-sonnet-5` | `ANTHROPIC_API_KEY` |
 | Kimi / Moonshot | `https://api.moonshot.ai/v1` | `kimi-k2.6` | `MOONSHOT_API_KEY` |
@@ -156,23 +150,12 @@ export JARVIS_MODEL=kimi-k2.6
 npm run dev
 ```
 
-Example local OpenAI-compatible configuration:
-
-The desktop Settings panel also includes a dedicated **Local AI · Ollama**
-choice. It detects installed models from `http://127.0.0.1:11434/v1`, needs no
-API key, and defaults to `qwen3.5:9b` for a practical speed/quality balance.
-On first launch JARVIS separately verifies the Ollama runtime, running service,
-and selected model instead of treating configuration as readiness. If Ollama is
-installed but stopped, **Start local AI** launches a JARVIS-managed local service
-without forwarding any cloud API secrets. If another compatible model is already
-installed, the setup selects it and verifies a real reply before continuing.
-The current model sizes and tags are documented in the
-[official Ollama Qwen 3.5 library](https://ollama.com/library/qwen3.5/tags).
+Example custom cloud configuration:
 
 ```bash
 export JARVIS_LLM_PROVIDER=custom
-export JARVIS_LLM_BASE_URL=http://127.0.0.1:1234/v1
-export JARVIS_MODEL=local-model
+export JARVIS_LLM_BASE_URL=https://provider.example/v1
+export JARVIS_MODEL=provider-model
 npm run dev
 ```
 
@@ -180,11 +163,10 @@ npm run dev
 
 | Variable | Purpose |
 | --- | --- |
-| `JARVIS_LLM_PROVIDER` | `ollama`, `openai`, `anthropic`, `kimi`, `qwen`, `gemini`, `grok`, or `custom` |
+| `JARVIS_LLM_PROVIDER` | `openai`, `anthropic`, `kimi`, `qwen`, `gemini`, `grok`, or `custom` |
 | `JARVIS_LLM_BASE_URL` | OpenAI-compatible base URL; not used by Anthropic |
 | `JARVIS_MODEL` | Main/chat model name |
 | `JARVIS_RESEARCH_MODEL` | Deeper research model name |
-| `JARVIS_OLLAMA_EXECUTABLE` | Optional explicit path to an installed Ollama CLI |
 | `OPENAI_API_KEY` | OpenAI credential |
 | `ANTHROPIC_API_KEY` | Anthropic credential |
 | `MOONSHOT_API_KEY` | Kimi/Moonshot credential |
@@ -210,7 +192,7 @@ npm run dev
 | `JARVIS_LOCAL_VOICE_SYNTH_TIMEOUT` | Max seconds to wait for one local utterance (default 180, max 900) |
 | `JARVIS_SPEECH_RUNTIME` | Development override for the bundled whisper.cpp directory |
 | `JARVIS_WHISPER_SERVER` / `JARVIS_WHISPER_MODEL` | Development overrides for the speech executable/model |
-| `JARVIS_STT_PROVIDER` | Recognition route: `auto` (cloud first), `openai`, `fish`, `local`, `off` |
+| `JARVIS_STT_PROVIDER` | Recognition route: `auto` (local first), `openai`, `fish`, `local`, `off` |
 | `JARVIS_STT_MODEL` | Cloud transcription model (default `gpt-4o-mini-transcribe`, falls back to `whisper-1`) |
 
 Copy `.env.example` to `.env` for server-only development. Never commit `.env`.
@@ -251,11 +233,11 @@ created or are licensed to use commercially. Create a separate speech key in the
 model key cannot be used for speech. Fish Audio requires available credits;
 follow the voice owner's permissions and Fish Audio's terms for your use case.
 
-Every macOS, Windows, and Linux installer includes its native verified
-`.jarvisvoice` contents, so the voice identity, bilingual profiles, model
-weights, and mastering match immediately. Small numerical differences between
-CPU and CUDA inference are possible. Standalone voice-pack files remain
-available for upgrades and development builds. V4's compact pack contains NeuTTS Nano,
+The Windows sale installer includes its native verified `.jarvisvoice`
+contents, so the voice identity, bilingual profiles, model weights, and
+mastering match immediately. The shipped Windows engine is CPU-only and never
+uses CUDA or the integrated GPU. Standalone voice-pack files remain available
+for upgrades and development builds. V4's compact pack contains NeuTTS Nano,
 the selected V3 old-reference English profile and V3 Tuned 1 German profile;
 the older MOSS and Chatterbox packs remain supported. Activate another pack through
 **Settings → Voice & Animation → Activate Existing Voice Pack**.
@@ -313,13 +295,11 @@ source .venv/bin/activate
 npm run build
 ```
 
-Artifacts are written to `release/`: DMG and ZIP on macOS, NSIS on Windows, and
-AppImage/DEB on Linux. Use `npm run build:dir` for a faster unpacked app build.
-Public macOS distribution requires your own Developer ID signing identity and
-Apple notarization; local ad-hoc builds can be opened manually for testing.
-The automated installer workflow builds native Apple Silicon, Intel Mac,
-Windows x64, and Linux x64 artifacts. Signed/tag builds intentionally fail when the required
-Apple or Windows certificate secrets are missing. See
+Artifacts are written to `release/`. The sale workflow builds one Windows x64
+NSIS installer, requires Authenticode for publishing, checks the 2 GiB download
+limit, then clean-installs, upgrades, launches, health-checks and uninstalls the
+candidate on a native Windows runner. Use `npm run build:dir` for a faster
+unpacked development build. See
 [`docs/COMMERCIAL_RELEASE.md`](docs/COMMERCIAL_RELEASE.md) for the release gate
 and [`docs/PRIVACY.md`](docs/PRIVACY.md) for the product privacy disclosure.
 Platform setup is covered in [`QUICKSTART-MAC.md`](QUICKSTART-MAC.md),

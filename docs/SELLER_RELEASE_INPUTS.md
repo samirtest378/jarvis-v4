@@ -53,6 +53,35 @@ or API secrets in this repository.
 - Google brand/scope verification status:
 - Real connect/read/disconnect test date:
 
-The strict release audit may pass only after non-confidential confirmation
-files reference reviewed evidence for every feature and platform included in
-the commercial release.
+## Machine-checkable release confirmations
+
+The strict release audit passes only when every non-confidential confirmation
+file contains all of these fields:
+
+```text
+Status: APPROVED
+Reviewed by: Full name or responsible organisation
+Review date: YYYY-MM-DD
+Scope: JARVIS v4.1.2 Windows x64 commercial release
+```
+
+Add the exact decision line required for each file:
+
+- `COMMERCIAL_LICENSE_CONFIRMATION.md`: `Commercial use permitted: YES`
+- `BRAND_CLEARANCE_CONFIRMATION.md`: `Brand use cleared: YES`
+- `VOICE_RIGHTS_CONFIRMATION.md`: `Commercial voice use permitted: YES`
+- `PRIVACY_LEGAL_CONFIRMATION.md`: `Seller identity verified: YES`
+- `WINDOWS_SIGNING_CONFIRMATION.md`: `Authenticode status: VALID`
+- `RELEASE_QA_CONFIRMATION.md`: `Windows 10: PASS`, `Windows 11: PASS`,
+  `Install: PASS`, `Upgrade: PASS`, `German microphone: PASS`,
+  `English microphone: PASS`, and `Uninstall: PASS`
+
+The signing and QA confirmations must additionally contain the SHA-256 of the
+exact tested installer:
+
+```text
+Artifact SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+```
+
+Reference reviewed evidence without committing contracts, identity documents,
+passwords, signing keys, API keys or other secrets to this repository.

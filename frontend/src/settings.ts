@@ -110,7 +110,7 @@ interface StatusResponse {
   };
 }
 
-type LLMProvider = "ollama" | "openai" | "anthropic" | "kimi" | "qwen" | "gemini" | "grok" | "custom";
+type LLMProvider = "openai" | "anthropic" | "kimi" | "qwen" | "gemini" | "grok" | "custom";
 
 const LLM_PRESETS: Record<LLMProvider, {
   label: string;
@@ -121,15 +121,6 @@ const LLM_PRESETS: Record<LLMProvider, {
   keyUrl: string;
   note: string;
 }> = {
-  ollama: {
-    label: "Local AI · Ollama",
-    baseUrl: "http://127.0.0.1:11434/v1",
-    model: "qwen3.5:9b",
-    researchModel: "qwen3.5:27b",
-    keyInput: "",
-    keyUrl: "https://ollama.com/download",
-    note: "Runs on this computer with no API key. Qwen 3.5 9B is the balanced default; larger installed models can be selected below.",
-  },
   openai: {
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
@@ -155,7 +146,7 @@ const LLM_PRESETS: Record<LLMProvider, {
     researchModel: "kimi-k3",
     keyInput: "input-moonshot-key",
     keyUrl: "https://platform.kimi.ai/console/api-keys",
-    note: "Global Kimi API. K2.6 keeps chat fast; K3 is used for explicit deep research.",
+    note: "K2.6 keeps normal chat fast and economical; K3 is reserved for explicit deep research.",
   },
   qwen: {
     label: "Qwen / DashScope",
@@ -186,12 +177,12 @@ const LLM_PRESETS: Record<LLMProvider, {
   },
   custom: {
     label: "Custom",
-    baseUrl: "http://127.0.0.1:1234/v1",
-    model: "local-model",
-    researchModel: "local-model",
+    baseUrl: "https://provider.example/v1",
+    model: "provider-model",
+    researchModel: "provider-model",
     keyInput: "input-custom-key",
     keyUrl: "",
-    note: "Any OpenAI-compatible HTTPS endpoint, or a local HTTP endpoint on this computer.",
+    note: "Any trusted OpenAI-compatible HTTPS cloud endpoint.",
   },
 };
 
@@ -233,6 +224,11 @@ const browserSpeech = createBrowserSpeechPlayer();
 
 const GMAIL_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7v10" stroke="#4285F4" stroke-width="3"/><path d="M20.5 7v10" stroke="#34A853" stroke-width="3"/><path d="M3.5 7 12 13.3 20.5 7" fill="none" stroke="#EA4335" stroke-width="3" stroke-linejoin="round"/><path d="M3.5 17h4" stroke="#FBBC04" stroke-width="3"/></svg>`;
 const GOOGLE_CALENDAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M4 3h16v18H4z"/><path fill="#4285F4" d="M4 8h16v13H4z"/><path fill="#34A853" d="M4 8h5v5H4z"/><path fill="#FBBC04" d="M15 8h5v5h-5z"/><path fill="#EA4335" d="M15 3h5v5h-5z"/><text x="12" y="18" text-anchor="middle" fill="#fff" font-size="8" font-family="Arial" font-weight="700">31</text></svg>`;
+const OUTLOOK_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="4" width="13" height="16" rx="2" fill="#1473E6"/><path d="m9 8 5.6 4.2L21 7.6v9.6H9z" fill="#fff" opacity=".9"/><rect x="3" y="6" width="10" height="12" rx="1.5" fill="#0866C6"/><circle cx="8" cy="12" r="2.3" fill="none" stroke="#fff" stroke-width="1.5"/></svg>`;
+const WINDOWS_CALENDAR_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="3" fill="#2563EB"/><path d="M3 9h18" stroke="#fff" stroke-width="2"/><path d="M8 3v4M16 3v4" stroke="#93C5FD" stroke-width="2" stroke-linecap="round"/><rect x="7" y="12" width="3" height="3" rx=".7" fill="#fff"/><rect x="14" y="12" width="3" height="3" rx=".7" fill="#BFDBFE"/></svg>`;
+const FOLDER_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" fill="#38BDF8"/><path d="M3.5 10h17" stroke="#E0F2FE" stroke-width="1.4"/></svg>`;
+const MICROPHONE_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="3" width="8" height="12" rx="4" fill="#F43F5E"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" fill="none" stroke="#FDA4AF" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+const SPOTIFY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#1ED760"/><path d="M6.5 9.2c3.8-1.1 7.8-.7 11.1 1M7.3 12.3c3.2-.8 6.7-.4 9.5.9M8 15.2c2.7-.6 5.5-.3 7.9.8" fill="none" stroke="#07110A" stroke-width="1.6" stroke-linecap="round"/></svg>`;
 
 const SETTINGS_PAGES: Record<string, string[]> = {
   "section-api-keys": ["section-api-keys"],
@@ -405,12 +401,12 @@ function buildPanelHTML(): string {
       </div>
 
       <nav class="settings-nav" id="settings-section-nav" aria-label="Settings sections" role="tablist">
-        <button class="settings-nav-button active" type="button" role="tab" aria-selected="true" data-settings-target="section-api-keys">AI</button>
-        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-voice">Voice</button>
-        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-access">Access</button>
-        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-tickets">Tickets</button>
-        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-preferences">You</button>
-        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-status">System</button>
+        <button class="settings-nav-button active" type="button" role="tab" aria-selected="true" data-settings-target="section-api-keys"><svg class="settings-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 3 3 1v6l-3 1-1 3H9l-1-3-3-1V7l3-1z"/><circle cx="12" cy="10" r="2.5"/></svg><span>AI</span></button>
+        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-voice"><svg class="settings-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3l2-6 4 12 2-6h5"/></svg><span>Voice</span></button>
+        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-access"><svg class="settings-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5c0 4.8 3.1 8 7.5 10 4.4-2 7.5-5.2 7.5-10V6z"/><path d="m9 12 2 2 4-4"/></svg><span>Access</span></button>
+        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-tickets"><svg class="settings-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>Tickets</span></button>
+        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-preferences"><svg class="settings-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M5 21c.6-4.2 3-6 7-6s6.4 1.8 7 6"/></svg><span>You</span></button>
+        <button class="settings-nav-button" type="button" role="tab" aria-selected="false" data-settings-target="section-status"><svg class="settings-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg><span>System</span></button>
       </nav>
 
       <div class="settings-body">
@@ -448,7 +444,7 @@ function buildPanelHTML(): string {
             <a class="provider-dashboard-link" id="llm-provider-key-link" target="_blank" rel="noreferrer"></a>
           </div>
 
-          <div class="settings-field provider-key-field" data-provider-key="openai" hidden>
+          <div class="settings-field provider-key-field" data-provider-key="openai">
             <label>OpenAI API Key</label>
             <div class="settings-input-row">
               <input type="password" id="input-openai-key" autocomplete="off" placeholder="sk-…" />
@@ -456,7 +452,7 @@ function buildPanelHTML(): string {
             </div>
           </div>
 
-          <div class="settings-field provider-key-field" data-provider-key="anthropic">
+          <div class="settings-field provider-key-field" data-provider-key="anthropic" hidden>
             <label>Anthropic API Key</label>
             <div class="settings-input-row">
               <input type="password" id="input-anthropic-key" autocomplete="off" placeholder="sk-ant-…" />
@@ -497,7 +493,7 @@ function buildPanelHTML(): string {
           </div>
 
           <div class="settings-field provider-key-field" data-provider-key="custom" hidden>
-            <label>Endpoint API Key <span class="label-optional">optional for local servers</span></label>
+            <label>Endpoint API Key <span class="label-optional">if required</span></label>
             <div class="settings-input-row">
               <input type="password" id="input-custom-key" autocomplete="off" placeholder="Optional bearer token…" />
               <span class="status-dot" id="status-custom"></span>
@@ -510,20 +506,6 @@ function buildPanelHTML(): string {
           <div class="settings-field" id="llm-base-url-field" hidden>
             <label for="input-llm-base-url">Base URL</label>
             <input type="text" id="input-llm-base-url" spellcheck="false" placeholder="https://provider.example/v1" />
-          </div>
-
-          <div class="local-model-card" id="local-model-actions" hidden>
-            <span class="status-dot" id="status-ollama"></span>
-            <div>
-              <strong>Private local intelligence</strong>
-              <p id="local-model-status">Install and start Ollama, then detect the models already on this computer.</p>
-            </div>
-            <div class="local-model-buttons">
-              <button class="settings-btn" id="btn-start-local-runtime" type="button" hidden>Start local AI</button>
-              <button class="settings-btn" id="btn-detect-local-models" type="button">Detect models</button>
-              <button class="settings-btn primary" id="btn-install-local-model" type="button">Install Qwen 3.5 9B · 6.6 GB</button>
-            </div>
-            <a href="https://ollama.com/download" target="_blank" rel="noreferrer">Get Ollama</a>
           </div>
 
           <div class="settings-field">
@@ -607,8 +589,8 @@ function buildPanelHTML(): string {
           <div class="settings-field">
             <label for="input-wake-mode">“Hey JARVIS” on startup</label>
             <select id="input-wake-mode">
-              <option value="off">Off — microphone starts only when you press the button (recommended)</option>
-              <option value="on">On — answer whenever you say “Hey JARVIS”</option>
+              <option value="on">On — answer whenever you say “Hey JARVIS” (recommended)</option>
+              <option value="off">Off — microphone starts only when you press the button</option>
             </select>
             <p class="settings-help compact" id="speech-recognition-help">The microphone indicator is always visible. Speech is processed locally by bundled Whisper and can be disabled instantly from the main screen.</p>
             <span class="voice-pack-state" id="speech-engine-state">Checking speech engine…</span>
@@ -656,7 +638,7 @@ function buildPanelHTML(): string {
               <strong>JARVIS v4 Smooth German &amp; English Voice</strong>
               <span class="voice-pack-state" id="voice-pack-state">Checking…</span>
             </div>
-            <p>Runs only on this computer. Separate V2-matched English and German profiles keep the character consistent; German pronunciation and long artificial pauses are corrected automatically. On Windows, compatible NVIDIA GPUs use CUDA automatically; other PCs fall back safely to the CPU.</p>
+            <p>Runs only on this computer. Separate V2-matched English and German profiles keep the character consistent; German pronunciation and long artificial pauses are corrected automatically. The Windows voice is CPU-only, so Intel integrated graphics stay free for the smooth interface.</p>
             <button class="settings-btn" id="btn-install-voice-pack">Activate Existing Voice Pack…</button>
           </div>
 
@@ -753,7 +735,7 @@ function buildPanelHTML(): string {
           <p class="settings-help" id="access-intro">Mail and Calendar use the accounts already configured on this computer.</p>
           <div class="connection-list" id="connection-list">
             <div class="connection-row" data-connection="mail" data-native-office>
-              <span class="connection-logo" data-logo="gmail" aria-hidden="true">✉</span>
+              <span class="connection-logo connection-logo-brand" data-logo="outlook" aria-hidden="true">${OUTLOOK_ICON}</span>
               <span class="connection-text">
                 <strong id="connection-mail-label">Email</strong>
                 <small id="connection-mail-detail">Configured mail accounts</small>
@@ -763,7 +745,7 @@ function buildPanelHTML(): string {
               <button class="connection-link" type="button" data-access-kind="automation" data-native-office-manage>Allow</button>
             </div>
             <div class="connection-row" data-connection="calendar" data-native-office>
-              <span class="connection-logo" data-logo="gcal" aria-hidden="true">◷</span>
+              <span class="connection-logo connection-logo-brand" data-logo="calendar" aria-hidden="true">${WINDOWS_CALENDAR_ICON}</span>
               <span class="connection-text">
                 <strong id="connection-calendar-label">Calendar</strong>
                 <small id="connection-calendar-detail">Configured calendars</small>
@@ -783,7 +765,7 @@ function buildPanelHTML(): string {
               <button class="connection-link" type="button" data-access-kind="automation">Allow</button>
             </div>
             <div class="connection-row" data-connection="files">
-              <span class="connection-logo" data-logo="files" aria-hidden="true">◧</span>
+              <span class="connection-logo connection-logo-brand" data-logo="files" aria-hidden="true">${FOLDER_ICON}</span>
               <span class="connection-text">
                 <strong>Files</strong>
                 <small>Desktop, Documents and Downloads</small>
@@ -793,7 +775,7 @@ function buildPanelHTML(): string {
               <button class="connection-link" type="button" data-access-kind="files">Allow</button>
             </div>
             <div class="connection-row" data-connection="microphone">
-              <span class="connection-logo" data-logo="mic" aria-hidden="true">◉</span>
+              <span class="connection-logo connection-logo-brand" data-logo="mic" aria-hidden="true">${MICROPHONE_ICON}</span>
               <span class="connection-text">
                 <strong>Microphone</strong>
                 <small>Needed for “Hey JARVIS”</small>
@@ -805,7 +787,7 @@ function buildPanelHTML(): string {
             <!-- Apps JARVIS launches. These need no sign-in: it opens them the
                  way you would from the Dock, so there is nothing to connect. -->
             <div class="connection-row" data-connection="apps">
-              <span class="connection-logo" data-logo="spotify" aria-hidden="true">♪</span>
+              <span class="connection-logo connection-logo-brand" data-logo="spotify" aria-hidden="true">${SPOTIFY_ICON}</span>
               <span class="connection-text">
                 <strong id="connection-apps-label">Spotify, Music, Safari &amp; more</strong>
                 <small id="connection-apps-detail">Just say “open Spotify”</small>
@@ -1130,47 +1112,6 @@ function renderVoiceLanguageState(status: StatusResponse) {
   if (state) state.textContent = voiceLanguageStateText(status.tts);
 }
 
-function renderLocalModelReadiness(status: StatusResponse) {
-  const state = document.getElementById("local-model-status");
-  const start = document.getElementById("btn-start-local-runtime") as HTMLButtonElement | null;
-  const install = document.getElementById("btn-install-local-model") as HTMLButtonElement | null;
-  if (!state || status.llm_provider !== "ollama") return;
-  const readiness = status.llm_readiness;
-  start?.toggleAttribute("hidden", !readiness.runtime_installed || readiness.service_available);
-  if (install) install.disabled = !readiness.service_available;
-  if (readiness.ready) {
-    setDotStatus("status-ollama", "green");
-    state.textContent = `Local AI ready · ${status.llm_model} · no API key.`;
-    return;
-  }
-  if (!readiness.runtime_installed) {
-    setDotStatus("status-ollama", "red");
-    state.textContent = "Ollama is not installed yet. Select Get Ollama, finish the installer, then reopen JARVIS.";
-    return;
-  }
-  if (!readiness.service_available) {
-    setDotStatus("status-ollama", "yellow");
-    state.textContent = "Ollama is installed but its local service is stopped. Select Start local AI.";
-    return;
-  }
-  const preferred = [
-    status.llm_model,
-    "qwen3.5:9b",
-    "qwen3.5:4b",
-    "qwen3.5:latest",
-    ...readiness.installed_models,
-  ].find((model, index, values) => model && readiness.installed_models.includes(model) && values.indexOf(model) === index);
-  if (preferred) {
-    (document.getElementById("input-llm-model") as HTMLInputElement).value = preferred;
-    (document.getElementById("input-research-model") as HTMLInputElement).value = preferred;
-    setDotStatus("status-ollama", "yellow");
-    state.textContent = `${status.llm_model} is not installed. ${preferred} is available and selected — Save & restart to use it.`;
-  } else {
-    setDotStatus("status-ollama", "red");
-    state.textContent = `${status.llm_model} is not installed. Install Qwen 3.5 9B to enable local intelligence.`;
-  }
-}
-
 function updateProviderFields(provider: LLMProvider, applyDefaults = false) {
   const preset = LLM_PRESETS[provider];
   document.querySelectorAll<HTMLElement>(".provider-key-field").forEach((element) => {
@@ -1178,8 +1119,6 @@ function updateProviderFields(provider: LLMProvider, applyDefaults = false) {
   });
   const baseField = document.getElementById("llm-base-url-field");
   if (baseField) baseField.hidden = provider === "anthropic";
-  const localModelActions = document.getElementById("local-model-actions");
-  if (localModelActions) localModelActions.hidden = provider !== "ollama";
   const research = document.getElementById("input-research-model") as HTMLInputElement | null;
   const researchField = research?.closest<HTMLElement>(".settings-field");
   if (researchField) researchField.hidden = provider === "openai";
@@ -1193,9 +1132,7 @@ function updateProviderFields(provider: LLMProvider, applyDefaults = false) {
   if (keyLink) {
     keyLink.hidden = !preset.keyUrl;
     keyLink.href = preset.keyUrl || "#";
-    keyLink.textContent = provider === "ollama"
-      ? "Download Ollama ↗"
-      : provider === "openai"
+    keyLink.textContent = provider === "openai"
         ? "Create an OpenAI key ↗"
         : `Create a ${preset.label} key ↗`;
   }
@@ -1296,7 +1233,6 @@ async function loadStatus() {
     if (llmModelEl) llmModelEl.value = status.llm_model;
     if (researchModelEl) researchModelEl.value = status.research_model;
     updateProviderFields(status.llm_provider);
-    renderLocalModelReadiness(status);
 
     const providerEl = document.getElementById("input-voice-provider") as HTMLSelectElement | null;
     const fishVoiceIdEl = document.getElementById("input-fish-voice-id") as HTMLInputElement | null;
@@ -1634,7 +1570,6 @@ async function saveLanguageModelSettings(): Promise<LLMProvider> {
     gemini: (document.getElementById("input-gemini-key") as HTMLInputElement).value.trim(),
     grok: (document.getElementById("input-xai-key") as HTMLInputElement).value.trim(),
     custom: (document.getElementById("input-custom-key") as HTMLInputElement).value.trim(),
-    ollama: "",
   };
   const test = await apiPost<{ valid: boolean; error?: string }>("/api/settings/test-llm", {
     provider,
@@ -1836,88 +1771,6 @@ function wireEvents() {
     updateProviderFields(selectedLLMProvider(), true);
   });
 
-  document.getElementById("btn-start-local-runtime")?.addEventListener("click", async () => {
-    const button = document.getElementById("btn-start-local-runtime") as HTMLButtonElement;
-    const status = document.getElementById("local-model-status");
-    button.disabled = true;
-    setDotStatus("status-ollama", "yellow");
-    if (status) status.textContent = "Starting the private local AI service…";
-    try {
-      await apiPost("/api/settings/local-runtime/start", {});
-      await loadStatus();
-    } catch (error) {
-      setDotStatus("status-ollama", "red");
-      if (status) status.textContent = error instanceof Error ? error.message : "The local AI service could not start.";
-    } finally {
-      button.disabled = false;
-    }
-  });
-
-  document.getElementById("btn-detect-local-models")?.addEventListener("click", async () => {
-    const button = document.getElementById("btn-detect-local-models") as HTMLButtonElement;
-    const status = document.getElementById("local-model-status");
-    const baseUrl = (document.getElementById("input-llm-base-url") as HTMLInputElement).value.trim();
-    button.disabled = true;
-    setDotStatus("status-ollama", "yellow");
-    if (status) status.textContent = "Looking for the local Ollama service…";
-    try {
-      const result = await apiGet<{ available: boolean; models: string[]; error?: string }>(
-        `/api/settings/local-models?base_url=${encodeURIComponent(baseUrl)}`,
-      );
-      if (!result.available) throw new Error(result.error || "Ollama is unavailable.");
-      if (!result.models.length) throw new Error("Ollama is running, but no local model is installed yet. Install qwen3.5:9b, then try again.");
-      const preferred = [
-        (document.getElementById("input-llm-model") as HTMLInputElement).value.trim(),
-        "qwen3.5:9b",
-        "qwen3.5:4b",
-        "qwen3.5:latest",
-      ].find((model) => model && result.models.includes(model)) || result.models[0];
-      (document.getElementById("input-llm-model") as HTMLInputElement).value = preferred;
-      const research = (document.getElementById("input-research-model") as HTMLInputElement);
-      if (!result.models.includes(research.value.trim())) research.value = preferred;
-      setDotStatus("status-ollama", "green");
-      if (status) status.textContent = `${result.models.length} installed model${result.models.length === 1 ? "" : "s"} found · selected ${preferred}.`;
-    } catch (error) {
-      setDotStatus("status-ollama", "red");
-      if (status) status.textContent = error instanceof Error ? error.message : "Ollama could not be detected.";
-    } finally {
-      button.disabled = false;
-    }
-  });
-
-  document.getElementById("btn-install-local-model")?.addEventListener("click", async () => {
-    const button = document.getElementById("btn-install-local-model") as HTMLButtonElement;
-    const detect = document.getElementById("btn-detect-local-models") as HTMLButtonElement;
-    const status = document.getElementById("local-model-status");
-    button.disabled = true;
-    detect.disabled = true;
-    setDotStatus("status-ollama", "yellow");
-    if (status) status.textContent = "Starting the 6.6 GB local model download…";
-    try {
-      await apiPost("/api/settings/local-models/install", { model: "qwen3.5:9b" });
-      for (let attempt = 0; attempt < 1800; attempt++) {
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
-        const install = await apiGet<{ state: string; progress: string; error: string }>("/api/settings/local-models/install-status");
-        if (status) status.textContent = install.progress || "Installing Qwen 3.5 9B…";
-        if (install.state === "ready") {
-          (document.getElementById("input-llm-model") as HTMLInputElement).value = "qwen3.5:9b";
-          (document.getElementById("input-research-model") as HTMLInputElement).value = "qwen3.5:9b";
-          setDotStatus("status-ollama", "green");
-          if (status) status.textContent = "Qwen 3.5 9B is installed locally and ready. Select Test provider, then Save & restart.";
-          return;
-        }
-        if (["error", "canceled"].includes(install.state)) throw new Error(install.error || "Model installation failed.");
-      }
-      throw new Error("The model installation is still running. Reopen Settings to check it again.");
-    } catch (error) {
-      setDotStatus("status-ollama", "red");
-      if (status) status.textContent = error instanceof Error ? error.message : "Model installation failed.";
-    } finally {
-      button.disabled = false;
-      detect.disabled = false;
-    }
-  });
-
   window.addEventListener("jarvis:wake-test-result", ((event: CustomEvent<{
     state: "listening" | "heard" | "success" | "timeout" | "unsupported" | "error";
     text?: string;
@@ -2011,9 +1864,7 @@ function wireEvents() {
       const modeLabel = getDesktopBridge() && selectedSecretStorageMode() === "local"
         ? "saved in the private local file"
         : "saved securely";
-      setFeedback(provider === "ollama"
-        ? `${LLM_PRESETS[provider].label} verified and saved. Conversations stay on this computer.`
-        : `${LLM_PRESETS[provider].label} verified and ${modeLabel}. Key values are never displayed again.`);
+      setFeedback(`${LLM_PRESETS[provider].label} verified and ${modeLabel}. Key values are never displayed again.`);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "Could not save language provider", true);
     }
@@ -2027,7 +1878,6 @@ function wireEvents() {
     const base_url = (document.getElementById("input-llm-base-url") as HTMLInputElement).value.trim();
     const model = (document.getElementById("input-llm-model") as HTMLInputElement).value.trim();
     const dotId = {
-      ollama: "status-ollama",
       openai: "status-openai",
       anthropic: "status-anthropic",
       kimi: "status-moonshot",
@@ -2494,11 +2344,9 @@ async function advanceSetup() {
   let permissionOnlyCompleted = false;
   try {
     if (setupStep === 0) {
-      setFeedback("Starting and verifying local intelligence… The first model start can take up to a minute.");
+      setFeedback("Testing and saving cloud intelligence…");
       const provider = await saveLanguageModelSettings();
-      setFeedback(provider === "ollama"
-        ? "Local intelligence verified and saved."
-        : `${LLM_PRESETS[provider].label} verified and saved.`);
+      setFeedback(`${LLM_PRESETS[provider].label} verified and saved.`);
     }
     if (setupStep === 1) await saveVoiceSettings(false);
     if (setupStep === 2) {
@@ -2543,6 +2391,15 @@ async function advanceSetup() {
     if (nav) nav.style.display = "none";
     const sectionNav = document.getElementById("settings-section-nav");
     if (sectionNav) sectionNav.style.display = "";
+    const wakeMode = (document.getElementById("input-wake-mode") as HTMLSelectElement | null)?.value;
+    const language = (document.getElementById("input-speech-language") as HTMLSelectElement | null)?.value || "auto";
+    if (wakeMode === "on") {
+      // The permission button is the user's one-time consent. Begin listening
+      // immediately instead of requiring an app restart after setup.
+      window.dispatchEvent(new CustomEvent("jarvis:wake-setting", {
+        detail: { enabled: true, language },
+      }));
+    }
     closeSettings();
     return;
   }
@@ -2593,8 +2450,7 @@ export async function openSettings(knownStatus?: StatusResponse) {
 
   // Load data
   // Even when the caller already checked readiness, render a fresh status into
-  // every field. The first-run path previously reused data without applying it,
-  // leaving the Ollama card hidden and stale cloud-key controls visible.
+  // every field so first-run setup never shows stale cloud-key controls.
   const status = await loadStatus() ?? knownStatus;
   await loadPreferences();
   await loadSecretStorageStatus();

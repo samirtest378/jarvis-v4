@@ -5,7 +5,7 @@ Passing automated tests alone is not a commercial release approval.
 
 ## Current status
 
-Version 4.1.1 has a polished desktop UI, private local service, optional cloud
+Version 4.1.2 has a polished desktop UI, private local service, optional cloud
 API keys, a bundled multilingual Whisper engine for offline “Hey JARVIS” and
 commands, a Windows-aware interface,
 privacy-safe support diagnostics, an optional PKCE-protected Google account
@@ -54,10 +54,9 @@ signing evidence below are not complete.
 ## Product and privacy gates
 
 - [x] No seller API key is embedded in source or installers.
-- [x] Local-AI readiness requires the installed runtime, a reachable loopback
-  service, the selected model, and a real generation test. The first-run wizard
-  persists the verified model before it advances, can start an installed Ollama
-  runtime without a terminal, and does not pass cloud secrets to that process.
+- [x] Language intelligence defaults to OpenAI GPT-5.4 Nano and does not expose
+  a local language-model download in the Windows product. Local CPU processing
+  remains limited to speech recognition and the bundled selected voice.
 - [x] No third-party character, celebrity, or public Fish voice reference is
   preconfigured; customers must explicitly enter a voice ID they are licensed
   to use.
@@ -115,6 +114,10 @@ signing evidence below are not complete.
   to publish an unsigned test installer.
 - [x] The Windows installer stages and re-verifies its matching bilingual voice
   archive and pinned model/profile hashes.
+- [x] CI rejects installers above GitHub's single-file 2 GiB limit, performs a
+  clean silent install, verifies an in-place upgrade preserves private customer
+  data, checks backend health and single-instance behavior, and uninstalls all
+  private application data before a signed asset may be published.
 - [ ] Configure an Authenticode OV/EV certificate or Azure Trusted Signing and
   verify the signature on the delivered Windows installer.
 - [ ] Test install, upgrade, rollback, first launch, permissions, and uninstall
@@ -151,6 +154,9 @@ Use GitHub repository or environment secrets; never commit credentials:
 
 - Windows signing: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`
 
-Run the **Build JARVIS v4 installers** workflow in `signed` mode. Tag builds
-also require all signing inputs and fail instead of silently publishing an
-unsigned installer.
+Run the **Build JARVIS v4 installers** workflow in `signed` mode to create a
+candidate; that workflow never publishes. After physical QA, record the exact
+installer SHA-256 in the signing and QA confirmations. The separate publisher
+runs the strict commercial audit, rechecks Authenticode, matches both recorded
+hashes to the downloaded installer, repeats the Windows smoke test, verifies
+the source workflow run and only then creates or updates the GitHub release.

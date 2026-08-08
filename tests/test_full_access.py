@@ -215,6 +215,8 @@ def test_the_prompt_tells_jarvis_to_act_rather_than_confirm():
 
     assert "ACT, DON'T ASK" in prompt
     assert "never for permission" in prompt
+    assert "Start clear, reversible local tasks immediately" in prompt
+    assert "require an explicit instruction and exact target" in prompt
 
 
 def test_the_prompt_refuses_orders_that_come_from_content_rather_than_the_user():

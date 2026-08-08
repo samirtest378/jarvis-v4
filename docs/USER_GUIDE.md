@@ -42,10 +42,10 @@ sending and read-only Calendar events after connection.
 - English: “Hey JARVIS, open my email.”
 
 JARVIS answers a German request in German and an English request in English.
-The Voice settings let you choose automatic cloud recognition or fully local
-recognition. Local recognition keeps microphone audio on the computer but uses
-more memory and processor time. On Windows and Linux its process is limited to
-2.5 GiB.
+After the one-time microphone permission, a fresh Windows installation listens
+for “Hey JARVIS” automatically; the main microphone button disables it at once.
+Automatic recognition uses local CPU-only Whisper first and keeps microphone
+audio on the computer. On Windows its process is limited to 2.5 GiB.
 
 ## Private accounts
 

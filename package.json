@@ -1,6 +1,6 @@
 {
   "name": "jarvis-v4",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "private": true,
   "scripts": {
     "setup": "npm ci --prefix frontend && npm ci --prefix desktop",
@@ -9,8 +9,8 @@
     "build:dir": "npm --prefix desktop run build:dir",
     "test:frontend": "npm --prefix frontend test",
     "test:desktop": "npm --prefix desktop test",
-    "release:audit": "python3 scripts/release_audit.py",
-    "release:audit:strict": "python3 scripts/release_audit.py --strict",
-    "release:checksums": "python3 scripts/create_release_checksums.py"
+    "release:audit": "node scripts/run_python.cjs scripts/release_audit.py",
+    "release:audit:strict": "node scripts/run_python.cjs scripts/release_audit.py --strict",
+    "release:checksums": "node scripts/run_python.cjs scripts/create_release_checksums.py"
   }
 }

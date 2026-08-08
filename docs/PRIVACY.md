@@ -9,12 +9,12 @@ distribution.
 
 ## Plain-language summary
 
-JARVIS v4 runs its interface, local service, memory, automation, and optional
-offline voice on the user's computer. Speech recognition and speech output
-default to cloud providers to keep processor load and memory use low; both can
-be switched back to fully local engines in Settings → Voice.
-Local AI through Ollama also remains on the computer. It has no built-in advertising,
-analytics, or telemetry. When a user selects a cloud language-model or voice
+JARVIS v4 runs its interface, local service, memory, automation, bundled
+German/English speech recognition, and bundled voice on the user's computer.
+On a fresh Windows installation, microphone recognition and speech output stay
+local and CPU-only. Cloud speech remains an explicit optional setting. The app
+has no built-in advertising, analytics, or telemetry. Language intelligence
+uses the cloud provider selected by the user. When a user selects a cloud language-model or voice
 provider, information needed for that request is sent directly from the app to
 the selected provider using the user's own API key.
 
@@ -49,14 +49,15 @@ external service:
   requested task context.
 - Fish Audio receives the text submitted for speech synthesis when Fish Audio
   voice is selected.
-- Speech recognition is set to **Automatic** by default, which sends short
-  microphone windows to the selected cloud provider (OpenAI, then Fish Audio)
-  so the computer spends no processor time on transcription. Choosing
-  **On this computer** in Settings → Voice keeps every microphone window on the
-  machine: bundled Whisper then receives the audio through an authenticated
-  loopback connection and transcribes it locally, at the cost of a resident
-  model and noticeably more processor load. Windows and Linux enforce a hard
-  2.5 GiB limit on that recognizer process.
+- Speech recognition is set to **Automatic** by default, which uses bundled
+  CPU-only Whisper first. Short microphone windows travel only to the
+  authenticated loopback service and stay on the computer. A configured
+  OpenAI or Fish speech service is tried only if local recognition is
+  unavailable; selecting either cloud provider explicitly also sends audio to
+  that provider. Windows enforces a hard 2.5 GiB limit on the recognizer.
+- The bundled JARVIS voice speaks locally on the CPU. Text is sent to OpenAI or
+  Fish Audio for speech generation only when the user explicitly selects that
+  cloud voice provider.
 - Websites opened by the user or through an explicit automation request receive
   the normal data a browser sends to those websites.
 - When the user explicitly asks JARVIS to read a public HTTPS page, the

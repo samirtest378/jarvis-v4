@@ -1,4 +1,4 @@
-name: Publish JARVIS v4 installers
+name: Publish verified JARVIS v4 Windows installer
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
       release_tag:
         description: Existing GitHub release tag
         required: true
-        default: v4.1.1
+        default: v4.1.2
         type: string
 
 permissions:
@@ -19,46 +19,89 @@ permissions:
 
 jobs:
   publish:
-    name: Publish ${{ matrix.label }}
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - label: macOS Apple Silicon
-            artifact: jarvis-v4-macos-arm64
-            extension: dmg
-          - label: macOS Intel
-            artifact: jarvis-v4-macos-x64
-            extension: dmg
-          - label: Windows x64
-            artifact: jarvis-v4-windows-x64
-            extension: exe
-          - label: Linux x64 AppImage
-            artifact: jarvis-v4-linux-x64-appimage
-            extension: AppImage
-          - label: Linux x64 DEB
-            artifact: jarvis-v4-linux-x64-deb
-            extension: deb
+    name: Verify Authenticode and publish Windows x64
+    runs-on: windows-2025
 
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Require commercial release evidence
+        run: npm run release:audit:strict
+
       - name: Download verified installer artifact
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.run_id }}
-          name: ${{ matrix.artifact }}
+          name: jarvis-v4-windows-x64
           path: installer
 
-      - name: Publish the single-file installer
-        shell: bash
+      - name: Require exactly one signed Windows installer
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem installer -Recurse -Filter "*.exe")
+          if ($installers.Count -ne 1) { throw "Expected exactly one Windows installer, found $($installers.Count)" }
+          $signature = Get-AuthenticodeSignature $installers[0].FullName
+          if ($signature.Status -ne "Valid") { throw "Installer signature is not valid: $($signature.Status)" }
+
+      - name: Bind evidence to the exact installer
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          $installer = @(Get-ChildItem installer -Recurse -Filter "*.exe")[0]
+          $version = (Get-Content desktop/package.json -Raw | ConvertFrom-Json).version
+          if ($env:RELEASE_TAG -ne "v$version") { throw "Release tag must be v$version" }
+          if ($installer.Name -ne "JARVIS-v4-$version-x64.exe") {
+            throw "Installer version does not match package version $version"
+          }
+          $actualHash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          foreach ($evidence in @("docs/WINDOWS_SIGNING_CONFIRMATION.md", "docs/RELEASE_QA_CONFIRMATION.md")) {
+            $contents = Get-Content $evidence -Raw
+            $match = [regex]::Match($contents, '(?im)^Artifact SHA-256:\s*([a-f0-9]{64})\s*$')
+            if (-not $match.Success) { throw "Missing installer SHA-256 in $evidence" }
+            if ($match.Groups[1].Value.ToLowerInvariant() -ne $actualHash) {
+              throw "$evidence does not match the installer SHA-256"
+            }
+          }
+
+      - name: Verify the source workflow run
+        id: source-run
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:RUN_ID" | ConvertFrom-Json
+          if ($run.name -ne "Build JARVIS v4 installers" -or $run.conclusion -ne "success") {
+            throw "Source run is not a successful JARVIS installer build"
+          }
+          "head_sha=$($run.head_sha)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Clean-install and launch before publishing
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem installer -Recurse -Filter "*.exe")[0].FullName
+          ./scripts/verify_windows_installer.ps1 -InstallerPath $installer -RequireSignature
+
+      - name: Publish the single signed Windows installer
+        shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.release_tag }}
-          EXTENSION: ${{ matrix.extension }}
+          SOURCE_SHA: ${{ steps.source-run.outputs.head_sha }}
         run: |
-          asset="$(find installer -type f -name "*.${EXTENSION}" -print -quit)"
-          test -n "$asset"
-          test "$(find installer -type f -name "*.${EXTENSION}" | wc -l | tr -d ' ')" = "1"
-          gh release upload "$RELEASE_TAG" "$asset" --repo "$GITHUB_REPOSITORY" --clobber
+          $asset = @(Get-ChildItem installer -Recurse -Filter "*.exe")[0].FullName
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_TAG $asset --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            gh release create $env:RELEASE_TAG $asset --repo $env:GITHUB_REPOSITORY `
+              --target $env:SOURCE_SHA --title "JARVIS v4.1.2 for Windows" `
+              --notes-file "docs/RELEASE_NOTES_4.1.2.md"
+          }

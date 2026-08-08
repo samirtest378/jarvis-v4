@@ -70,23 +70,21 @@ def test_managed_provider_defaults(provider, base_url, model, research_model, ke
     assert defaults["key_env"] == key_env
 
 
-def test_ollama_is_a_keyless_local_provider():
-    defaults = config.PROVIDER_DEFAULTS["ollama"]
-    assert defaults["base_url"] == "http://127.0.0.1:11434/v1"
-    assert defaults["model"] == "qwen3.5:9b"
-    client = llm_client.create_llm_client(
-        provider="ollama",
-        api_key="",
-        base_url=defaults["base_url"],
-    )
-    assert isinstance(client, llm_client.OpenAICompatibleClient)
-    assert client.endpoint == "http://127.0.0.1:11434/v1/chat/completions"
+def test_local_language_models_are_not_selectable_in_the_windows_product():
+    assert "ollama" not in config.SUPPORTED_LLM_PROVIDERS
+    assert config.normalize_llm_provider("ollama") == "openai"
 
 
 def test_missing_or_invalid_provider_defaults_to_openai_cloud():
     assert config.normalize_llm_provider(None) == "openai"
     assert config.normalize_llm_provider("") == "openai"
     assert config.normalize_llm_provider("not-a-provider") == "openai"
+
+
+def test_custom_provider_defaults_to_a_cloud_endpoint():
+    defaults = config.PROVIDER_DEFAULTS["custom"]
+    assert defaults["base_url"] == "https://provider.example/v1"
+    assert defaults["model"] == "provider-model"
 
 
 def test_local_system_prompt_stays_small_and_action_safe():
@@ -101,9 +99,22 @@ def test_local_system_prompt_stays_small_and_action_safe():
     assert "Never claim" in prompt
     assert "exactly two conversation languages: German and English" in prompt
     assert "Never reply in any third language" in prompt
+    assert "Start clear, reversible local tasks immediately" in prompt
+    assert "Never infer deletion" in prompt
 
 
-@pytest.mark.parametrize("provider", ["openai", "kimi", "qwen", "gemini", "grok"])
+def test_work_mode_retries_a_stalling_answer_without_waiting_for_a_second_turn():
+    import inspect
+    import server
+
+    source = inspect.getsource(server.voice_handler)
+    assert "if is_stalling:" in source
+    assert "if is_stalling and work_session._message_count >= 2" not in source
+    assert "inside the selected project" in source
+    assert "Do not delete user data" in source
+
+
+@pytest.mark.parametrize("provider", ["openai", "kimi", "qwen", "gemini", "grok", "custom"])
 def test_managed_openai_compatible_providers_require_a_key(provider):
     client = llm_client.create_llm_client(
         provider=provider,
@@ -258,6 +269,39 @@ async def test_kimi_adapter_disables_slow_reasoning_for_voice_chat(monkeypatch):
     )
 
     assert captured["payload"]["thinking"] == {"type": "disabled"}
+
+
+@pytest.mark.asyncio
+async def test_grok_adapter_uses_the_low_latency_conversation_mode(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        is_error = False
+
+        def json(self):
+            return {"choices": [{"message": {"content": "OK"}}], "usage": {}}
+
+    class FakeClient:
+        def __init__(self, **_options):
+            pass
+
+        async def post(self, _url, *, headers, json):
+            captured.update(headers=headers, payload=json)
+            return FakeResponse()
+
+    monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeClient)
+    client = llm_client.OpenAICompatibleClient(
+        provider="grok",
+        api_key="test",
+        base_url="https://api.x.ai/v1",
+    )
+    await client.messages.create(
+        model="grok-4.3",
+        max_tokens=8,
+        messages=[{"role": "user", "content": "OK?"}],
+    )
+
+    assert captured["payload"]["reasoning_effort"] == "none"
 
 
 @pytest.mark.asyncio
@@ -435,44 +479,6 @@ async def test_openai_retries_without_optional_verbosity_and_caches_result(monke
     assert "verbosity" not in payloads[1]
     assert "verbosity" not in payloads[2]
     assert payloads[2]["reasoning_effort"] == "low"
-
-
-@pytest.mark.asyncio
-async def test_ollama_qwen_disables_hidden_reasoning_for_fast_visible_replies(monkeypatch):
-    captured = {}
-
-    class FakeResponse:
-        is_error = False
-
-        def json(self):
-            return {"choices": [{"message": {"content": "JARVIS_LOCAL_OK"}}], "usage": {}}
-
-    class FakeClient:
-        def __init__(self, **_options):
-            pass
-
-        async def post(self, _url, *, headers, json):
-            captured.update(headers=headers, payload=json)
-            return FakeResponse()
-
-        async def aclose(self):
-            return None
-
-    monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeClient)
-    client = llm_client.OpenAICompatibleClient(
-        provider="ollama",
-        api_key="",
-        base_url="http://127.0.0.1:11434/v1",
-    )
-    response = await client.messages.create(
-        model="qwen3.5:4b",
-        max_tokens=32,
-        messages=[{"role": "user", "content": "Status?"}],
-    )
-
-    assert captured["payload"]["reasoning_effort"] == "none"
-    assert "Authorization" not in captured["headers"]
-    assert response.content[0].text == "JARVIS_LOCAL_OK"
 
 
 @pytest.mark.asyncio
